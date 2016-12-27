@@ -1,6 +1,7 @@
 package com.bowie.javagl;
 
-import java.util.Vector;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.jogamp.opengl.GL2;
 
@@ -10,11 +11,11 @@ import com.jogamp.opengl.GL2;
  *
  */
 public class Simplex {
-	private Vector<CSOVertex> points;
+	private List<CSOVertex> points;
 	public Vector3 lastDir = new Vector3(1, 0, 0);
 	
 	public Simplex() {
-		points = new Vector<>(4);
+		points = new ArrayList<>(4);
 	}
 	
 	public void reset() {
@@ -89,7 +90,7 @@ public class Simplex {
 		// gotta give the closest CSOVertex to origin
 		
 		if (points.size() == 1) {
-			return new Vector3(points.firstElement().p);
+			return new Vector3(points.get(0).p);
 		} else if (points.size() == 2) {
 			// return closest to line segment
 			return MathHelper.getClosestToLine(Vector3.ZERO, points.get(0).p, points.get(1).p, true);
@@ -233,7 +234,7 @@ public class Simplex {
 	}
 	
 	public CSOVertex getLast() {
-		return points.lastElement();
+		return points.get(points.size()-1);
 	}
 	
 	public void debugDraw(GL2 gl) {		

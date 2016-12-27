@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import com.jogamp.opengl.GL2;
 
@@ -32,19 +33,19 @@ public class Physics {
 	private Vector3 gravity = new Vector3(0, -10, 0);
 	
 	// list of rigid bodies
-	private List<RigidBody> bodies = Collections.synchronizedList(new ArrayList<RigidBody>());
+	private List<RigidBody> bodies = new ArrayList<>();
 	
 	// list of joints
-	private List<Joint> joints = Collections.synchronizedList(new ArrayList<Joint>());
+	private List<Joint> joints = new ArrayList<>();
 	
 	// list of simulated forces
-	private List<SimForce> forces = Collections.synchronizedList(new ArrayList<SimForce>());
+	private List<SimForce> forces = new ArrayList<>();
 	
 	// list of persistent manifold
-	private Map<BodyPair, PersistentManifold> manifolds = Collections.synchronizedMap(new HashMap<BodyPair, PersistentManifold>());
+	private Map<BodyPair, PersistentManifold> manifolds = new HashMap<BodyPair, PersistentManifold>();
 	
 	//this gets resorted every frame
-	private List<PersistentManifold> sortedManifolds = Collections.synchronizedList(new ArrayList<PersistentManifold>());
+	private List<PersistentManifold> sortedManifolds = new ArrayList<>();
 		
 	// this is temporary stuffs
 	private List<BodyPair> potentialColliders = new ArrayList<>();
@@ -99,83 +100,72 @@ public class Physics {
 	
 	public void sortContacts() {
 		// clear them
-		synchronized (sortedManifolds) {
-//			sortedManifolds.clear();
-			// add all of them
+		
+		// sort them
+		try {
+			Collections.sort(sortedManifolds, new Comparator<PersistentManifold>() {
 
-//				for (PersistentManifold m : manifolds.values()) {
-//					sortedManifolds.add(m);
-//				}
-				// sort them
-			try {
-				Collections.sort(sortedManifolds, new Comparator<PersistentManifold>() {
-
-					@Override
-					public int compare(PersistentManifold m1, PersistentManifold m2) {
-						return (int) (m1.getHeight(10)-m2.getHeight(10));
-					}
-				});
-			} catch (IllegalArgumentException e) {
-				System.out.println("fuck this inconsistent contact sorting!!");
-			}
-			
+				@Override
+				public int compare(PersistentManifold m1, PersistentManifold m2) {
+					return (int) (m1.getHeight(10)-m2.getHeight(10));
+				}
+			});
+		} catch (IllegalArgumentException e) {
+			System.out.println("fuck this inconsistent contact sorting!!");
 		}
+			
 	}
 	
 	public void refreshContacts() {
 		// here we should be removing untouching bodies entry pair (persistent manifold)
-		synchronized (manifolds) {
+		
+		Iterator<Entry<BodyPair, PersistentManifold>> iter = manifolds.entrySet().iterator();
+		while (iter.hasNext()) {
+			// are the bodies still touching?
 			@SuppressWarnings("rawtypes")
-			Iterator iter = manifolds.entrySet().iterator();
-			while (iter.hasNext()) {
-				// are the bodies still touching?
-				@SuppressWarnings("rawtypes")
-				Map.Entry pair = (Map.Entry)iter.next();
-				BodyPair k = (BodyPair) pair.getKey();
-				if (!k.stillInProximity()) {
-					// remove from both list/map!!
-					sortedManifolds.remove(pair.getValue());
-					iter.remove();
-				} else {
-					// refresh here!!
-					PersistentManifold m = (PersistentManifold) pair.getValue();
-					m.refresh();
-				}
+			Map.Entry pair = (Map.Entry)iter.next();
+			BodyPair k = (BodyPair) pair.getKey();
+			if (!k.stillInProximity()) {
+				// remove from both list/map!!
+				sortedManifolds.remove(pair.getValue());
+				iter.remove();
+			} else {
+				// refresh here!!
+				PersistentManifold m = (PersistentManifold) pair.getValue();
+				m.refresh();
 			}
 		}
+	
 	}
 	
 	public void applyAllForces(float dt) {
 		// first, simulate all forces
-		synchronized (forces) {
-			for (SimForce f : forces) {
-				f.simulate(dt);
-			}
+		
+		for (SimForce f : forces) {
+			f.simulate(dt);
 		}
 	}
 	
 	public void updateVelocity(float dt) {
-		synchronized (bodies) {
-			for (RigidBody b : bodies) {
-				// apply gravity here (if body is not fixed)
-				if (!b.isFixed())
-					b.applyGravity(gravity);
-				
-				b.updateVelocity(dt);
-				b.updateBBox(dt);
-				b.clearForces();
-			}
+
+		for (RigidBody b : bodies) {
+			// apply gravity here (if body is not fixed)
+			if (!b.isFixed())
+				b.applyGravity(gravity);
+			
+			b.updateVelocity(dt);
+			b.updateBBox(dt);
+			b.clearForces();
 		}
+	
 	}
 	
 	public void updatePosition(float dt) {
 		// update position + apply damping
-		synchronized (bodies) {
-			for (RigidBody b : bodies) {
-				b.updatePosition(dt);
-				b.applyLinearDamping(linearDamping);
-				b.applyAngularDamping(angularDamping);
-			}
+		for (RigidBody b : bodies) {
+			b.updatePosition(dt);
+			b.applyLinearDamping(linearDamping);
+			b.applyAngularDamping(angularDamping);
 		}
 	}
 	
@@ -266,91 +256,87 @@ public class Physics {
 	
 	public void debugDraw(GL2 gl, boolean drawContacts, boolean drawContactN, boolean drawContactT, boolean drawBBox) {
 		// draw all rigid bodies, using colors from
-		synchronized (bodies) {
-			for (RigidBody b : bodies) {
-				float [] color = Polytope.getColor(b.getId());
-				
-				gl.glColor3f(color[0], color[1], color[2]);
-				b.debugDraw(gl);
-				
-				if (drawBBox) {
-					gl.glColor3f(0.2f, 0.0f, 0.8f);
-					b.getBbox().debugDraw(gl);
-				}
+		for (RigidBody b : bodies) {
+			float [] color = Polytope.getColor(b.getId());
+			
+			gl.glColor3f(color[0], color[1], color[2]);
+			b.debugDraw(gl);
+			
+			if (drawBBox) {
+				gl.glColor3f(0.2f, 0.0f, 0.8f);
+				b.getBbox().debugDraw(gl);
 			}
 		}
 		
 		
 		// draw all manifolds?
 		if (drawContacts) {
-			synchronized (manifolds) {
-				for (PersistentManifold m : manifolds.values()) {
-					m.debugDraw(gl, drawContactN, drawContactT);
-				}
+			
+			for (PersistentManifold m : manifolds.values()) {
+				m.debugDraw(gl, drawContactN, drawContactT);
 			}
+			
 		}	
 		
-		synchronized (joints) {
-			for (Joint j : joints) {
-				j.debugDraw(gl);
-			}
+		
+		for (Joint j : joints) {
+			j.debugDraw(gl);
 		}
+		
 	}
 	
 	public void broadPhase(float dt) {
 		// reset
 		potentialColliders.clear();
-		// brute force (O(n2))
-		synchronized (bodies) {
-			for (int i=0; i<bodies.size()-1; i++) {
-				RigidBody b1 = bodies.get(i);
-				for (int j=bodies.size()-1; j>=0; --j) {
-					// skip similar indices
-					if (i == j)
-						continue;
+		
+		// brute force (O(n2))		
+		for (int i=0; i<bodies.size()-1; i++) {
+			RigidBody b1 = bodies.get(i);
+			for (int j=bodies.size()-1; j>=0; --j) {
+				// skip similar indices
+				if (i == j)
+					continue;
 
-					RigidBody b2 = bodies.get(j);
-					
-					// skip fixed bodies
-					if (b1.isFixed() && b2.isFixed())
-						continue;
-					
-					// skip infinite mass
-					if (b1.getInvMass() < Vector3.EPSILON && b2.getInvMass() < Vector3.EPSILON)
-						continue;
-					
-					// are we close enough? BBox collide
-					if (b1.getBbox().overlap(b2.getBbox())) {
-						// add to potential colliders, also add pointer to persistent manifold
-						potentialColliders.add(new BodyPair(b1, b2));
-					}
+				RigidBody b2 = bodies.get(j);
+				
+				// skip fixed bodies
+				if (b1.isFixed() && b2.isFixed())
+					continue;
+				
+				// skip infinite mass
+				if (b1.getInvMass() < Vector3.EPSILON && b2.getInvMass() < Vector3.EPSILON)
+					continue;
+				
+				// are we close enough? BBox collide
+				if (b1.getBbox().overlap(b2.getBbox())) {
+					// add to potential colliders, also add pointer to persistent manifold
+					potentialColliders.add(new BodyPair(b1, b2));
 				}
-			} // for loop
-		} // synchronize 
+			}
+		} // for loop
+		
 	}
 	
 	public void narrowPhase(float dt) {
 		// for each entry, gotta find persistent cache
-		synchronized (bodies) {
-			for (BodyPair p : potentialColliders) {				
-				
-				PersistentManifold m = manifolds.get(p);
-				// if we cannot find, then add new
-				if (m == null) {
-					m = new PersistentManifold(p);
-					// add to map
-					manifolds.put(p, m);
-					// add to to be sorted list
-					sortedManifolds.add(m);
-				}
-				
-				
-				// now we attempt to generate contact point
-				Contact c = MathHelper.generateContactGJKEPA(p.getBodyA(), p.getBodyB());
-				if (c != null)
-					m.add(c);
-			} // for
-		} // sync		
+		for (BodyPair p : potentialColliders) {				
+			
+			PersistentManifold m = manifolds.get(p);
+			// if we cannot find, then add new
+			if (m == null) {
+				m = new PersistentManifold(p);
+				// add to map
+				manifolds.put(p, m);
+				// add to to be sorted list
+				sortedManifolds.add(m);
+			}
+			
+			
+			// now we attempt to generate contact point
+			Contact c = MathHelper.generateContactGJKEPA(p.getBodyA(), p.getBodyB());
+			if (c != null)
+				m.add(c);
+		} // for	
 	}
 	
 	
@@ -360,22 +346,21 @@ public class Physics {
 				m.preStep(dt, slop, baumgarte);	// no slop and baumgarte
 			}
 		}*/ // sync
-		synchronized (sortedManifolds) {
+		
 //			int i = 0;
 //			System.out.println("===============PRE STEP===============");
-			for (PersistentManifold m : sortedManifolds) {
-				m.preStep(dt, slop, baumgarte);
+		for (PersistentManifold m : sortedManifolds) {
+			m.preStep(dt, slop, baumgarte);
 //				System.out.println(i + " : " + m.getHeight(10));
 //				i++;
-			}
 		}
 		
+		
 		// now for joints
-		synchronized (joints) {
-			for (Joint j : joints) {
-				j.preCalculate(dt, baumgarte);
-			}
+		for (Joint j : joints) {
+			j.preCalculate(dt, baumgarte);
 		}
+		
 	}
 	
 	public void solve() {
@@ -389,18 +374,18 @@ public class Physics {
 		}*/
 		
 		for (int i=0; i<solverIteration; i++) {
-			synchronized (sortedManifolds) {
-				for (PersistentManifold m : sortedManifolds) {
-					m.solve();
-				}
+			
+			// solve contacts
+			for (PersistentManifold m : sortedManifolds) {
+				m.solve();
 			}
 			
+			
 			// now for joints
-			synchronized (joints) {
-				for (Joint j : joints) {
-					j.solve();
-				}
+			for (Joint j : joints) {
+				j.solve();
 			}
+			
 		}
 		
 	}
@@ -420,17 +405,17 @@ public class Physics {
 		// so for each iteration, we apply only a fraction
 		// of the bias impulse
 		for (int i=0; i<positionIteration; i++) {
-			synchronized (sortedManifolds) {
-				for (PersistentManifold m : sortedManifolds) {
-					m.positionSolve();
-				}
+			
+			for (PersistentManifold m : sortedManifolds) {
+				m.positionSolve();
+			}
+		
+		
+		
+			for (Joint j : joints) {
+				j.positionSolve();
 			}
 			
-			synchronized (joints) {
-				for (Joint j : joints) {
-					j.positionSolve();
-				}
-			}
 		}
 	}
 

@@ -1,7 +1,8 @@
 package com.bowie.javagl;
 
+import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.Vector;
+import java.util.List;
 
 import com.jogamp.opengl.GL2;
 
@@ -27,7 +28,7 @@ public class Polytope {
 	}
 	
 	// hold triangles
-	private Vector<EPATriangle> tris;
+	private List<EPATriangle> tris;
 	
 	public Polytope(Simplex s) {
 		init(s);
@@ -38,8 +39,7 @@ public class Polytope {
 	 * @param s - simplex returned by GJK (must contain origin and is a tetrahedron)
 	 */
 	public void init(Simplex s) {
-		new Vector<>();
-		tris = new Vector<EPATriangle>();
+		tris = new ArrayList<>();
 		
 		// make sure it's 4 in the beginning, or else it would fail
 		CSOVertex a = s.getSupport(0);
@@ -232,7 +232,7 @@ public class Polytope {
 	 *
 	 */
 	public class EdgeList {
-		private Vector<EPAEdge> el = new Vector<Polytope.EPAEdge>();
+		private List<EPAEdge> el = new ArrayList<>();
 		
 		public void addTriangle(EPATriangle t) {
 			addEdge(new EPAEdge(t.a, t.b));	// AB
@@ -258,7 +258,7 @@ public class Polytope {
 		 * @param common	- the common point
 		 * @param tris		- the triangle list to be modified
 		 */
-		public void buildFan(CSOVertex common, Vector<EPATriangle> tris) {
+		public void buildFan(CSOVertex common, List<EPATriangle> tris) {
 			for (EPAEdge e : el) {
 				tris.add(new EPATriangle(common, e.a, e.b));
 			}

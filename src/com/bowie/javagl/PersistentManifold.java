@@ -1,8 +1,8 @@
 package com.bowie.javagl;
 
+import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.Vector;
-
+import java.util.List;
 import com.jogamp.opengl.GL2;
 
 /**
@@ -17,19 +17,19 @@ public class PersistentManifold {
 	static public float DIST_TOLERANCE = 0.2f;
 	static public float DEPTH_TOLERANCE = 0.002f;
 	
-	public Vector<Contact> contacts;
+	public List<Contact> contacts;
 	public RigidBody bodyA, bodyB;
 	
 	public PersistentManifold(BodyPair p) {
 		this.bodyA = p.getBodyA();
 		this.bodyB = p.getBodyB();
-		this.contacts = new Vector<>();
+		this.contacts = new ArrayList<>();
 	}
 	
 	public PersistentManifold(RigidBody bA, RigidBody bB) {
 		this.bodyA = bA;
 		this.bodyB = bB;
-		this.contacts = new Vector<>();
+		this.contacts = new ArrayList<>();
 	}
 	
 	/**

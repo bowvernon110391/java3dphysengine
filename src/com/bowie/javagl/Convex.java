@@ -1,17 +1,17 @@
 package com.bowie.javagl;
 
-import java.util.Vector;
-
+import java.util.ArrayList;
+import java.util.List;
 import com.jogamp.opengl.GL2;
 
 public class Convex extends Shape {
 	
-	private Vector<Vector3> points;
-	private Vector<Polygon> faces;
+	private List<Vector3> points;
+	private List<Polygon> faces;
 	
 	public Convex(Vector3[] pts, int[][] face_idx) {
-		points = new Vector<>();
-		faces = new Vector<>();
+		points = new ArrayList<>();
+		faces = new ArrayList<>();
 		
 		// add vertices
 		for (int i=0; i<pts.length; i++) {
@@ -61,7 +61,7 @@ public class Convex extends Shape {
 		Vector3 localDir = new Vector3();
 		worldOri.conjugated().transformVector(worldDir, localDir);
 		
-		Vector3 maxPoint = points.firstElement();
+		Vector3 maxPoint = points.get(0);
 		float maxDist = Vector3.dot(maxPoint, localDir);
 		
 		for (int i = 1; i<points.size(); i++ ) {
@@ -160,7 +160,7 @@ public class Convex extends Shape {
 		float minY, maxY;
 		float minZ, maxZ;
 		
-		Vector3 v = points.firstElement();
+		Vector3 v = points.get(0);
 		
 		// init min max
 		minX = maxX = Vector3.dot(v, xAxis);

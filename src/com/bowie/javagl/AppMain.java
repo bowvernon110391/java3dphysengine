@@ -1,6 +1,6 @@
 package com.bowie.javagl;
 
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.locks.ReentrantLock;
 
 import com.jogamp.nativewindow.WindowClosingProtocol.WindowClosingMode;
 import com.jogamp.newt.Display;
@@ -23,7 +23,7 @@ import com.jogamp.opengl.util.Animator;
 
 public class AppMain {	
 	public GLWindow glWindow = null;
-	public Animator anim = null;
+	public Animator anim = null;	// GUI thread
 	public Thread phys = null;	// separate physics thread? (UNUSED)
 	
 	// shared between thread!!
@@ -32,6 +32,17 @@ public class AppMain {
 	private float fov = 80.0f;
 	private Matrix4 matPers = new Matrix4();
 	
+	private Physics world;
+	private WorldSpring ws;
+	private WorldPinJoint wp;
+	
+	private boolean drawContacts = true;
+	private boolean drawContactN = false;
+	private boolean drawContactT = false;
+	private boolean drawBBox = false;
+	
+	// this is our lock
+	final private ReentrantLock resLock = new ReentrantLock();
 	
 	private float yRot = 40;
 	private float xzRot = 0.0f;
@@ -40,34 +51,6 @@ public class AppMain {
 	final private float maxYRot = 80.0f;
 	final private float minDist = 1.0f;
 	final private float maxDist = 16.0f;
-	
-	private RigidBody bodyA = null;
-	private RigidBody bodyB = null;
-	private WorldSpring ws = null;
-	
-	private Physics world = null;
-	
-	private boolean drawContacts = true;
-	private boolean drawContactN = false;
-	private boolean drawContactT = false;
-	
-	private boolean drawBBox = false;
-	
-	private float camX, camY, camZ;
-	
-	private Shape sA = new Box(1, 1, 1);
-	private Shape sB = new Box(2, 1, 3);
-	
-	private Vector3 posA = new Vector3(-1, 0, 0);
-	private Quaternion rotA = Quaternion.makeAxisRot(new Vector3(1, 0.2f, 0.5f), (float) Math.toRadians(30));
-	
-	private Vector3 posB = new Vector3(2, 2, 0);
-	private Quaternion rotB = Quaternion.makeAxisRot(new Vector3(.1f, 0.42f, 0.15f), (float) Math.toRadians(30));
-	
-	private WorldPinJoint wp;
-	private Simplex simp = null;
-	private Polytope poly = null;
-	private Vector3 vA, vcA, vB, vcB;
 	
 	private float profilerTrigger = 0;
 	
@@ -156,7 +139,7 @@ public class AppMain {
 		
 //		collide = MathHelper.gjkColDet(boxA, posA, rotA, boxB, posB, rotB, new Vector3(0,1,0), simp);
 		// create the world
-		
+		RigidBody bodyA, bodyB;
 		// bottom plate
 		bodyB = new RigidBody(-1.0f, new Box(16, 0.5f, 16));
 		bodyB.setFixed(true);
@@ -311,19 +294,12 @@ public class AppMain {
 					
 					while (dt >= simDT) {
 						dt -= simDT;
-						AppMain.this.update(simDT);
 						
-//						System.out.println("update: " + Thread.currentThread().getName());
+						synchronized (world) {
+							AppMain.this.update(simDT);
+						}						
+						
 					}
-//					// let's try sleeping?
-//					long sleepTime = 1000 / simFPS;
-//					try {
-//						AppMain.this.update(simDT);
-//						Thread.sleep(sleepTime);
-//					} catch (InterruptedException e) {
-//						// TODO Auto-generated catch block
-//						e.printStackTrace();
-//					}
 				}
 			}
 		});
@@ -338,62 +314,28 @@ public class AppMain {
 		
 		float cosYRot = (float) Math.cos(Math.toRadians(yRot));
 		
-		camX = (float) (Math.sin(Math.toRadians(xzRot)) * cosYRot * dist);
-		camZ = (float) (Math.cos(Math.toRadians(xzRot)) * cosYRot * dist);
-		camY = (float) (Math.sin(Math.toRadians(yRot)) * dist);
+		float camX = (float) (Math.sin(Math.toRadians(xzRot)) * cosYRot * dist);
+		float camZ = (float) (Math.cos(Math.toRadians(xzRot)) * cosYRot * dist);
+		float camY = (float) (Math.sin(Math.toRadians(yRot)) * dist);
 		
 		GLU glu = GLUgl2.createGLU(gl);
 		glu.gluLookAt(camX, camY, camZ, 0, 0, 0, 0, 1, 0);
 		
 		world.debugDraw(gl, drawContacts, drawContactN, drawContactT, drawBBox);
 		ws.render(gl);
-		
-		// draw
-		gl.glColor3f(.5f, 0, 0);
-		sA.render(gl, posA, rotA);
-		
-		gl.glColor3f(.5f, .2f, 0);
-		sB.render(gl, posB, rotB);
-		// draw closest point
-		if (vcA != null && vcB != null) {
-			gl.glPushAttrib(GL2.GL_POINT_BIT | GL2.GL_LINE_BIT);
-			gl.glPointSize(5.0f);
-			gl.glLineWidth(3.0f);
-			
-			gl.glBegin(GL2.GL_POINTS);
-				gl.glColor3f(1, 1, 1);
-				gl.glVertex3f(vcA.x, vcA.y, vcA.z);
-				gl.glVertex3f(vcB.x, vcB.y, vcB.z);
-			gl.glEnd();
-			
-			gl.glBegin(GL2.GL_LINES);
-				gl.glColor3f(1, 0, 0);
-				gl.glVertex3f(vcA.x, vcA.y, vcA.z);
-				gl.glVertex3f(vcB.x, vcB.y, vcB.z);
-			gl.glEnd();
-			
-			gl.glPopAttrib();
-		}
-		
-//		if (poly != null) {
-//			synchronized (poly) {
-//				poly.debugDraw(gl);
-//			}
-//		}
-		
-//		if (simp != null)
-//			simp.debugDraw(gl);
 	}
 	
 	public void keyDown(short keyCode) {
+		
 		Vector3 wpPos = wp.getWorldPinPos();
+		
 		
 		switch (keyCode) {
 		case KeyEvent.VK_ESCAPE:
 			glWindow.destroy();
 			break;
 			
-		case KeyEvent.VK_W:
+		/*case KeyEvent.VK_W:
 			posA.z -= 0.1f;
 			break;
 		case KeyEvent.VK_S:
@@ -410,7 +352,7 @@ public class AppMain {
 			break;
 		case KeyEvent.VK_E:
 			posA.y -= 0.1f;
-			break;
+			break;*/
 			
 		case KeyEvent.VK_B:
 			drawBBox = !drawBBox;
@@ -449,38 +391,24 @@ public class AppMain {
 			break;
 			
 		case KeyEvent.VK_R:
-			init();
+			resLock.lock();
+			try {
+				init();
+			} finally {
+				resLock.unlock();
+			}
+			
 			break;
 			
 		case KeyEvent.VK_SPACE:
-			ws.setActive(!ws.isActive());
+			synchronized (ws) {
+				ws.setActive(!ws.isActive());
+			}
+			
 			break;
 		}		
 		
 		// refresh
-		vcA=vcB=null;
-		
-		/*simp = new Simplex();
-		poly = null;
-		
-		if (MathHelper.gjkColDet(sA, posA, rotA, sB, posB, rotB, new Vector3(1,0,0), simp)) {
-			System.out.println("collide!!");
-			// construct EPA info
-			poly = new Polytope(simp);
-			EPAInfo inf = MathHelper.epaExecute(sA, posA, rotA, sB, posB, rotB, poly);
-			
-			if (inf != null) {
-				vcA = inf.calcContactA();
-				vcB = inf.calcContactB();
-				
-				System.out.println("vcA: " + vcA.x + ", " + vcA.y + ", " + vcA.z);
-				System.out.println("vcB: " + vcB.x + ", " + vcB.y + ", " + vcB.z);
-			} else {
-				System.out.println("impossible!! collide but no epa!!");
-			}
-			
-		} else 
-			System.out.println("not collide?!?!");*/
 	}
 	
 	public void mouseDrag(float x, float y, float z) {
@@ -537,9 +465,6 @@ public class AppMain {
 	 */
 	
 	private class GLHandler implements GLEventListener {
-		private long curTick = 0, lastTick = System.nanoTime();
-		private float tickDT = 0.0f;
-		
 		@Override
 		public void init(GLAutoDrawable drawable) {
 			GL2 gl = drawable.getGL().getGL2();
@@ -572,9 +497,12 @@ public class AppMain {
 //				AppMain.this.update(AppMain.this.simDT);
 //			}
 			
-			// simply render as fast as possible
-			// dt is updated by physics thread
-			AppMain.this.render(drawable.getGL().getGL2(), AppMain.this.dt);
+			synchronized (world) {
+				AppMain.this.render(drawable.getGL().getGL2(), dt);
+			}
+			
+			
+			
 //			System.out.println("render: " + Thread.currentThread().getName());
 		}
 

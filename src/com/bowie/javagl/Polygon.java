@@ -1,6 +1,7 @@
 package com.bowie.javagl;
 
-import java.util.Vector;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.jogamp.opengl.GL2;
 
@@ -12,7 +13,7 @@ import com.jogamp.opengl.GL2;
  */
 public class Polygon {
 	public Vector3 n = new Vector3();
-	public Vector<Vector3> p = new Vector<>();
+	public List<Vector3> p = new ArrayList<>();
 	
 	public Polygon() {
 		// do nothing
@@ -27,7 +28,7 @@ public class Polygon {
 		calcNormal();
 	}
 	
-	public Polygon(Vector<Vector3> pts) {
+	public Polygon(List<Vector3> pts) {
 		// initialize from set of points
 		p.clear();
 		for (Vector3 v : pts) {
@@ -49,7 +50,7 @@ public class Polygon {
 	 * @param p	- this is the incidence
 	 * @return
 	 */
-	public Vector<Vector3> clip(Polygon inc) {
+	public List<Vector3> clip(Polygon inc) {
 		// make a plane.
 		// ppos = point
 		// pnormal = N X E --> points toward inside
@@ -57,8 +58,7 @@ public class Polygon {
 		Vector3 pNormal = new Vector3();
 		Vector3 e = new Vector3();
 		
-		@SuppressWarnings("unchecked")
-		Vector<Vector3> pts = (Vector<Vector3>) inc.p.clone();
+		List<Vector3> pts = new ArrayList<>(inc.p);	// gotta copy
 		
 		int np = p.size();
 		for (int i=0; i<p.size(); i++) {
@@ -83,8 +83,8 @@ public class Polygon {
 	 * @param pNormal
 	 * @return
 	 */
-	public static Vector<Vector3> clip(Vector<Vector3> pts, Vector3 pPos, Vector3 pNormal) {
-		Vector<Vector3> result = new Vector<>();
+	public static List<Vector3> clip(List<Vector3> pts, Vector3 pPos, Vector3 pNormal) {
+		List<Vector3> result = new ArrayList<>();
 		// loop over line segment
 		int np = pts.size();
 		for (int i=0; i<np; i++) {
@@ -122,8 +122,8 @@ public class Polygon {
 	 * @param pNormal
 	 * @return clipped points
 	 */
-	public Vector<Vector3> clip(Vector3 pPos, Vector3 pNormal) {
-		Vector<Vector3> result = new Vector<>();
+	public List<Vector3> clip(Vector3 pPos, Vector3 pNormal) {
+		List<Vector3> result = new ArrayList<>();
 		// loop over line segment
 		int np = p.size();
 		for (int i=0; i<np; i++) {
@@ -155,14 +155,14 @@ public class Polygon {
 		return result;
 	}
 	
-	public Vector<Vector3> generateContactPoints(Polygon inc) {
+	public List<Vector3> generateContactPoints(Polygon inc) {
 		// simply clip first
-		Vector<Vector3> ctcs = this.clip(inc);
+		List<Vector3> ctcs = this.clip(inc);
 		
 		// now clip point behind our normal
 		Vector3 invN = n.inverse();
 		
-		return clip(ctcs, p.firstElement(), invN);
+		return clip(ctcs, p.get(0), invN);
 	}
 	
 	/**
