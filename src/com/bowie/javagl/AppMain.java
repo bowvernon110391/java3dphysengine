@@ -23,12 +23,34 @@ import com.jogamp.opengl.glu.gl2.GLUgl2;
 import com.jogamp.opengl.util.Animator;
 
 public class AppMain {	
+	public class AppRes {
+		public AppRes() {
+			simp = new Simplex();
+			
+			sA = new Box(1,1,1);
+			sB = new Box(2,1,2);
+			
+			posA = new Vector3(-2, 0, 0);
+			posB = new Vector3(1, 0, 0);
+			
+			rotA = Quaternion.makeAxisRot(new Vector3(0, 2, 1), (float) Math.toRadians(25.0));
+			rotB = Quaternion.makeAxisRot(new Vector3(5, 2, 1), (float) Math.toRadians(125.0));
+		}
+		
+		public Simplex simp;
+		public Shape sA, sB;
+		public Vector3 posA, posB;
+		public Quaternion rotA, rotB;
+	};
+	
 	public GLWindow glWindow = null;
 	public Animator anim = null;	// GUI thread
 	public Thread phys = null;	// separate physics thread? (UNUSED)
 	
 	// shared between thread!!
 	volatile private float dt = 0;		// delta time
+	
+	private AppRes res  = new AppRes();
 	
 	private float fov = 80.0f;
 	private Matrix4 matPers = new Matrix4();
@@ -65,6 +87,12 @@ public class AppMain {
 	}
 	
 	public void init() {
+		// simplex visualization
+		synchronized (res) {
+			boolean success = MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, res.sB, res.posB, res.rotB,
+					new Vector3(1,0,0), res.simp);
+		}
+		
 		Vector3 [] cylinder_vertex = new Vector3[] {
 				new Vector3(-.5f,  .7f, -.5f),
 				new Vector3(-.5f, -.7f, -.5f),
@@ -320,12 +348,20 @@ public class AppMain {
 		GLU glu = GLUgl2.createGLU(gl);
 		glu.gluLookAt(camX, camY, camZ, 0, 0, 0, 0, 1, 0);
 		
-		synchronized (world) {
-			world.debugDraw(gl, drawContacts, drawContactN, drawContactT, drawBBox);
-		}
+//		synchronized (world) {
+//			world.debugDraw(gl, drawContacts, drawContactN, drawContactT, drawBBox);
+//		}
 		
-		synchronized (ws) {
-			ws.render(gl);
+//		synchronized (ws) {
+//			ws.render(gl);
+//		}
+		
+		synchronized (res) {
+			gl.glColor3f(1, 0, 0);
+			res.sA.render(gl, res.posA, res.rotA);
+			
+			gl.glColor3f(0, 1, 0);
+			res.sB.render(gl, res.posB, res.rotB);
 		}
 		
 	}
@@ -429,38 +465,40 @@ public class AppMain {
 	
 	public void update(float dt) {
 		
-		synchronized (world) {
-			long timeStep = System.nanoTime();
-			world.step(dt);	
-			
-			double ovl = (double)(System.nanoTime() - timeStep)/1000000;
-			
-			profilerTrigger += dt;
-			
-			// if one second has passed, update information
-			if (profilerTrigger >= 2.0f) {
-				profilerTrigger = 0;
-				String profTxt = "upd(%.2f)ref(%.2f)bphase(%.2f)nphase(%.2f)sort(%.2f)pre(%.2f)solver(%.2f)psolver(%.2f)intg(%.2f)|ovl(%.2f)%n";
-				
-				System.out.printf(profTxt, world.getPerformanceTimer(Physics.TIME_UPDATE_VEL), 
-						world.getPerformanceTimer(Physics.TIME_REFRESH_CONTACT),
-						world.getPerformanceTimer(Physics.TIME_BROAD_PHASE),
-						world.getPerformanceTimer(Physics.TIME_NARROW_PHASE),
-						world.getPerformanceTimer(Physics.TIME_SORT_CONTACT),
-						world.getPerformanceTimer(Physics.TIME_PRE_STEP),
-						world.getPerformanceTimer(Physics.TIME_SOLVER),
-						world.getPerformanceTimer(Physics.TIME_POSITION_SOLVER),
-						world.getPerformanceTimer(Physics.TIME_INTEGRATE),
-						ovl);
-				
-				String count = 	"body(" + world.getBodyCount() + ")" +
-								"joint(" + world.getJointCount() + ")" +
-								"force(" + world.getForceCount() + ")" +
-								"pair(" + world.getPairCount() +")" +
-								"manifold(" + world.getManifoldCount()+")";
-				System.out.println(count);
-			}
-		}
+		
+		
+//		synchronized (world) {
+//			long timeStep = System.nanoTime();
+//			world.step(dt);	
+//			
+//			double ovl = (double)(System.nanoTime() - timeStep)/1000000;
+//			
+//			profilerTrigger += dt;
+//			
+//			// if one second has passed, update information
+//			if (profilerTrigger >= 2.0f) {
+//				profilerTrigger = 0;
+//				String profTxt = "upd(%.2f)ref(%.2f)bphase(%.2f)nphase(%.2f)sort(%.2f)pre(%.2f)solver(%.2f)psolver(%.2f)intg(%.2f)|ovl(%.2f)%n";
+//				
+//				System.out.printf(profTxt, world.getPerformanceTimer(Physics.TIME_UPDATE_VEL), 
+//						world.getPerformanceTimer(Physics.TIME_REFRESH_CONTACT),
+//						world.getPerformanceTimer(Physics.TIME_BROAD_PHASE),
+//						world.getPerformanceTimer(Physics.TIME_NARROW_PHASE),
+//						world.getPerformanceTimer(Physics.TIME_SORT_CONTACT),
+//						world.getPerformanceTimer(Physics.TIME_PRE_STEP),
+//						world.getPerformanceTimer(Physics.TIME_SOLVER),
+//						world.getPerformanceTimer(Physics.TIME_POSITION_SOLVER),
+//						world.getPerformanceTimer(Physics.TIME_INTEGRATE),
+//						ovl);
+//				
+//				String count = 	"body(" + world.getBodyCount() + ")" +
+//								"joint(" + world.getJointCount() + ")" +
+//								"force(" + world.getForceCount() + ")" +
+//								"pair(" + world.getPairCount() +")" +
+//								"manifold(" + world.getManifoldCount()+")";
+//				System.out.println(count);
+//			}
+//		}
 		
 	}
 	

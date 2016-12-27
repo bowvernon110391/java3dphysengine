@@ -47,7 +47,7 @@ public class Simplex {
 	public void addSupportConservatively(CSOVertex v) {
 		// gotta add, while removing unnecessary vertex
 		if (points.size() >= 4) {
-			System.out.println("removing shit simplex");
+			System.out.println("Simplex.asc: removing shit simplex");
 			// gotta remove when we're full
 			CSOVertex a, b, c, d;
 			a = points.get(0);
@@ -58,7 +58,7 @@ public class Simplex {
 			// which vertex is redundant?
 			Quaternion bary = MathHelper.computeBarycentric(v.p, a.p, b.p, c.p, d.p);
 			
-			System.out.println("bary: " + bary.x+", "+bary.y+", "+bary.z+", "+bary.w);
+			System.out.println("Simplex.asc: bary: " + bary.x+", "+bary.y+", "+bary.z+", "+bary.w);
 			
 			if (bary.x <= Vector3.EPSILON) {
 				// a
@@ -79,7 +79,7 @@ public class Simplex {
 			}
 			// otherwise, it might be inside, which makes the caller a stupid person
 		} else {
-			System.out.println("normal add");
+			System.out.println("Simplex.asc: normal add");
 		}
 		
 		// safe to add

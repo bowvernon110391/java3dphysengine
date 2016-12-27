@@ -438,6 +438,67 @@ public class MathHelper {
 //		return cp;
 //	}
 	
+	public static boolean gjkClosestPoint(Shape sA, Vector3 posA, Quaternion rotA, Shape sB, Vector3 posB, Quaternion rotB, Vector3 dir, Simplex simp) {
+		if (simp == null)
+			simp = new Simplex();
+		else
+			simp.reset();
+		
+		// we add single support point first
+		simp.addSupportConservatively(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
+		
+		// direction reversed
+		dir.scale(-1.0f);
+		
+		// last result
+		float closestDist = 9999999.0f;	// this means we haven't got one
+		
+		int iter = 0;
+		
+		while (iter ++ < 32) {
+			// potential to get stuck in infinite loop
+			System.out.println("gjk closest @ " + iter);
+			// add point to simplex
+			simp.addSupportConservatively(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
+			
+			// grab closest point to track our distance so far
+			Vector3 closest = simp.closestToOrigin();
+			
+			System.out.println("gjk closest: closest= " + closest.x+", "+closest.y+", "+closest.z);
+			
+			if (simp.hasOrigin()) {
+				// welp, cannot be true
+				System.out.println("gjk closest: simplex has origin");
+				return false;
+			} else {
+				// well, let's see
+				float d = closest.lengthSquared();
+				
+				System.out.println("gjk closest: dist => " + d + ", " + closestDist+ " @ iter " + (iter));
+				
+				if ( d < closestDist ) {
+					// how close?
+					float diff = Math.abs(closestDist - d);
+					
+					if (diff < 0.001f) {
+						System.out.println("gjk closest: terminate with separation distance -> " + Math.abs(closestDist-d));
+						return true;
+					}
+					
+					// update distance
+					closestDist = d;
+				} else {
+					// that might be because we get worse. return
+					System.out.println("gjk closest: cant get better than -> " + closestDist);
+					return true;
+				}
+				// get new direction
+				dir.setTo(closest.inverse());
+			}
+		}
+		return false;
+	}
+	
 	/**
 	 * gjkColdet - perform GJK collision detection between 2 convex shapes
 	 * @param sA	- shape A
