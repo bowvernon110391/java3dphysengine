@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="D:/projects/JavaGLTest/gluegen-rt.jar" sourcepath="bin/gluegen-java-src.zip"/>
+	<classpathentry kind="lib" path="D:/projects/JavaGLTest/gluegen-rt-natives-windows-i586.jar"/>
+	<classpathentry kind="lib" path="D:/projects/JavaGLTest/jogl-all.jar" sourcepath="bin/jogl-java-src.zip"/>
+	<classpathentry kind="lib" path="D:/projects/JavaGLTest/jogl-all-natives-windows-i586.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

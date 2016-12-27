@@ -1,0 +1,472 @@
+package com.bowie.javagl;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import com.jogamp.opengl.GL2;
+
+public class Physics {
+
+	public static final int TIME_UPDATE_VEL = 0;
+	public static final int TIME_REFRESH_CONTACT = 1;
+	public static final int TIME_BROAD_PHASE = 2;
+	public static final int TIME_NARROW_PHASE = 3;
+	public static final int TIME_SORT_CONTACT = 4;
+	public static final int TIME_PRE_STEP = 5;
+	public static final int TIME_SOLVER = 6;
+	public static final int TIME_POSITION_SOLVER = 7;
+	public static final int TIME_INTEGRATE = 8;
+	
+	private int solverIteration = 10;
+	private int positionIteration = 5;
+	private float baumgarte = 0.2f;
+	private float slop = 0.02f;
+	
+	private float linearDamping = 0.0000f, angularDamping = 0.0000f;	// to slow down shits
+	
+	private Vector3 gravity = new Vector3(0, -10, 0);
+	
+	// list of rigid bodies
+	private List<RigidBody> bodies = Collections.synchronizedList(new ArrayList<RigidBody>());
+	
+	// list of joints
+	private List<Joint> joints = Collections.synchronizedList(new ArrayList<Joint>());
+	
+	// list of simulated forces
+	private List<SimForce> forces = Collections.synchronizedList(new ArrayList<SimForce>());
+	
+	// list of persistent manifold
+	private Map<BodyPair, PersistentManifold> manifolds = Collections.synchronizedMap(new HashMap<BodyPair, PersistentManifold>());
+	
+	//this gets resorted every frame
+	private List<PersistentManifold> sortedManifolds = Collections.synchronizedList(new ArrayList<PersistentManifold>());
+		
+	// this is temporary stuffs
+	private List<BodyPair> potentialColliders = new ArrayList<>();
+	
+	// this is for profiler
+	private long [] perfTime;
+	private long perfCounter;
+	
+	public Physics(int solverIteration, int positionIteration, float slop, float baumgarte) {	
+		this.solverIteration = solverIteration;
+		this.positionIteration = solverIteration;
+		this.slop = slop;
+		this.baumgarte = baumgarte;
+		
+		// initialize profiler
+		perfTime = new long[10];
+		perfCounter = 0;
+	}
+
+	public void addBody(RigidBody b) {
+		// simply add to list of bodies
+		bodies.add(b);
+	}
+	
+	public void addJoint(Joint j) {
+		joints.add(j);
+	}
+	
+	public void addSimForce(SimForce f) {
+		forces.add(f);
+	}
+	
+	public int getBodyCount() {
+		return bodies.size();
+	}
+	
+	public int getForceCount() {
+		return forces.size();
+	}
+	
+	public int getJointCount() {
+		return joints.size();
+	}
+	
+	public int getPairCount() {
+		return manifolds.keySet().size();
+	}
+	
+	public int getManifoldCount() {
+		return sortedManifolds.size();
+	}
+	
+	public void sortContacts() {
+		// clear them
+		synchronized (sortedManifolds) {
+//			sortedManifolds.clear();
+			// add all of them
+
+//				for (PersistentManifold m : manifolds.values()) {
+//					sortedManifolds.add(m);
+//				}
+				// sort them
+			try {
+				Collections.sort(sortedManifolds, new Comparator<PersistentManifold>() {
+
+					@Override
+					public int compare(PersistentManifold m1, PersistentManifold m2) {
+						return (int) (m1.getHeight(10)-m2.getHeight(10));
+					}
+				});
+			} catch (IllegalArgumentException e) {
+				System.out.println("fuck this inconsistent contact sorting!!");
+			}
+			
+		}
+	}
+	
+	public void refreshContacts() {
+		// here we should be removing untouching bodies entry pair (persistent manifold)
+		synchronized (manifolds) {
+			@SuppressWarnings("rawtypes")
+			Iterator iter = manifolds.entrySet().iterator();
+			while (iter.hasNext()) {
+				// are the bodies still touching?
+				@SuppressWarnings("rawtypes")
+				Map.Entry pair = (Map.Entry)iter.next();
+				BodyPair k = (BodyPair) pair.getKey();
+				if (!k.stillInProximity()) {
+					// remove from both list/map!!
+					sortedManifolds.remove(pair.getValue());
+					iter.remove();
+				} else {
+					// refresh here!!
+					PersistentManifold m = (PersistentManifold) pair.getValue();
+					m.refresh();
+				}
+			}
+		}
+	}
+	
+	public void applyAllForces(float dt) {
+		// first, simulate all forces
+		synchronized (forces) {
+			for (SimForce f : forces) {
+				f.simulate(dt);
+			}
+		}
+	}
+	
+	public void updateVelocity(float dt) {
+		synchronized (bodies) {
+			for (RigidBody b : bodies) {
+				// apply gravity here (if body is not fixed)
+				if (!b.isFixed())
+					b.applyGravity(gravity);
+				
+				b.updateVelocity(dt);
+				b.updateBBox(dt);
+				b.clearForces();
+			}
+		}
+	}
+	
+	public void updatePosition(float dt) {
+		// update position + apply damping
+		synchronized (bodies) {
+			for (RigidBody b : bodies) {
+				b.updatePosition(dt);
+				b.applyLinearDamping(linearDamping);
+				b.applyAngularDamping(angularDamping);
+			}
+		}
+	}
+	
+	public void step(float dt) {
+		long [] timer = new long[10];
+		int timeId = 0;
+		
+		timer[timeId++] = System.nanoTime();		// 0
+		
+		// first, simulate all forces
+		applyAllForces(dt);
+		
+		// next, we update all velocities + update bounding boxes + clear forces
+		updateVelocity(dt);
+		
+		timer[timeId++] = System.nanoTime();		// 1
+		
+		// refresh contacts, remove invalid ones. Here, the bounding box is up to date
+		refreshContacts();
+		
+		timer[timeId++] = System.nanoTime();		// 2
+		
+		// enter broadphase (AABB is up to date here, so would be safe I guess)
+		broadPhase(dt);
+		
+		timer[timeId++] = System.nanoTime();		// 3
+		
+		// enter narrowphase (also contains contact generation)
+		narrowPhase(dt);
+		
+		timer[timeId++] = System.nanoTime();		// 4
+
+		// sort contact here
+		sortContacts();
+		
+		timer[timeId++] = System.nanoTime();		// 5
+		
+		// pre step
+		solverPreStep(dt);		
+		
+		timer[timeId++] = System.nanoTime();		// 6
+		
+		// solve
+		solve();
+		
+		timer[timeId++] = System.nanoTime();		// 7
+		
+		// now position correction
+		positionCorrection(dt);
+		
+		timer[timeId++] = System.nanoTime();		// 8
+		// last, update position
+		updatePosition(dt);		
+		
+		timer[timeId++] = System.nanoTime();		// 9
+		// print log
+//		System.out.println("potential, nbodies, nmanifolds: " + potentialColliders.size()+", " +bodies.size()+
+//				", " + manifolds.size());
+		
+		long timeVelUpdate	= (timer[1] - timer[0])/1000000;
+		long timeRefreshContact	= (timer[2] - timer[1])/1000000;
+		long timeBroadPhase 	= (timer[3] - timer[2])/1000000;
+		long timeNarrowPhase	= (timer[4] - timer[3])/1000000;
+		long timeSortContact	= (timer[5] - timer[4])/1000000;
+		long timePreStep		= (timer[6] - timer[5])/1000000;
+		long timeSolver			= (timer[7] - timer[6])/1000000;
+		long timePositionSolve	= (timer[8] - timer[7])/1000000;
+		long timeIntegrate		= (timer[9] - timer[8])/1000000;
+		
+		perfTime[0]	+= timeVelUpdate;
+		perfTime[1]	+= timeRefreshContact;
+		perfTime[2] += timeBroadPhase;
+		perfTime[3] += timeNarrowPhase;
+		perfTime[4] += timeSortContact;
+		perfTime[5] += timePreStep;
+		perfTime[6] += timeSolver;
+		perfTime[7] += timePositionSolve;
+		perfTime[8] += timeIntegrate;
+		
+		perfCounter ++;
+	}
+	
+	public long getPerformanceTimer(int id) {
+		if (perfCounter == 0)
+			return 0;
+		return perfTime[id] / perfCounter;
+	}
+	
+	public void debugDraw(GL2 gl, boolean drawContacts, boolean drawContactN, boolean drawContactT, boolean drawBBox) {
+		// draw all rigid bodies, using colors from
+		synchronized (bodies) {
+			for (RigidBody b : bodies) {
+				float [] color = Polytope.getColor(b.getId());
+				
+				gl.glColor3f(color[0], color[1], color[2]);
+				b.debugDraw(gl);
+				
+				if (drawBBox) {
+					gl.glColor3f(0.2f, 0.0f, 0.8f);
+					b.getBbox().debugDraw(gl);
+				}
+			}
+		}
+		
+		
+		// draw all manifolds?
+		if (drawContacts) {
+			synchronized (manifolds) {
+				for (PersistentManifold m : manifolds.values()) {
+					m.debugDraw(gl, drawContactN, drawContactT);
+				}
+			}
+		}	
+		
+		synchronized (joints) {
+			for (Joint j : joints) {
+				j.debugDraw(gl);
+			}
+		}
+	}
+	
+	public void broadPhase(float dt) {
+		// reset
+		potentialColliders.clear();
+		// brute force (O(n2))
+		synchronized (bodies) {
+			for (int i=0; i<bodies.size()-1; i++) {
+				RigidBody b1 = bodies.get(i);
+				for (int j=bodies.size()-1; j>=0; --j) {
+					// skip similar indices
+					if (i == j)
+						continue;
+
+					RigidBody b2 = bodies.get(j);
+					
+					// skip fixed bodies
+					if (b1.isFixed() && b2.isFixed())
+						continue;
+					
+					// skip infinite mass
+					if (b1.getInvMass() < Vector3.EPSILON && b2.getInvMass() < Vector3.EPSILON)
+						continue;
+					
+					// are we close enough? BBox collide
+					if (b1.getBbox().overlap(b2.getBbox())) {
+						// add to potential colliders, also add pointer to persistent manifold
+						potentialColliders.add(new BodyPair(b1, b2));
+					}
+				}
+			} // for loop
+		} // synchronize 
+	}
+	
+	public void narrowPhase(float dt) {
+		// for each entry, gotta find persistent cache
+		synchronized (bodies) {
+			for (BodyPair p : potentialColliders) {				
+				
+				PersistentManifold m = manifolds.get(p);
+				// if we cannot find, then add new
+				if (m == null) {
+					m = new PersistentManifold(p);
+					// add to map
+					manifolds.put(p, m);
+					// add to to be sorted list
+					sortedManifolds.add(m);
+				}
+				
+				
+				// now we attempt to generate contact point
+				Contact c = MathHelper.generateContactGJKEPA(p.getBodyA(), p.getBodyB());
+				if (c != null)
+					m.add(c);
+			} // for
+		} // sync		
+	}
+	
+	
+	public void solverPreStep(float dt) {
+		/*synchronized (manifolds) {
+			for (PersistentManifold m : manifolds.values()) {
+				m.preStep(dt, slop, baumgarte);	// no slop and baumgarte
+			}
+		}*/ // sync
+		synchronized (sortedManifolds) {
+//			int i = 0;
+//			System.out.println("===============PRE STEP===============");
+			for (PersistentManifold m : sortedManifolds) {
+				m.preStep(dt, slop, baumgarte);
+//				System.out.println(i + " : " + m.getHeight(10));
+//				i++;
+			}
+		}
+		
+		// now for joints
+		synchronized (joints) {
+			for (Joint j : joints) {
+				j.preCalculate(dt, baumgarte);
+			}
+		}
+	}
+	
+	public void solve() {
+		// solve it
+		/*synchronized (manifolds) {
+			for (int i=0; i<solverIteration; i++) {
+				for (PersistentManifold m : manifolds.values()) {
+					m.solve();
+				}
+			}
+		}*/
+		
+		for (int i=0; i<solverIteration; i++) {
+			synchronized (sortedManifolds) {
+				for (PersistentManifold m : sortedManifolds) {
+					m.solve();
+				}
+			}
+			
+			// now for joints
+			synchronized (joints) {
+				for (Joint j : joints) {
+					j.solve();
+				}
+			}
+		}
+		
+	}
+	
+	public void positionCorrection(float dt) {
+		/*synchronized (manifolds) {
+			float strength = 1.0f/(float)positionIteration;
+			for (int i=0; i<positionIteration; i++) {
+				for (PersistentManifold m : manifolds.values()) {
+					m.positionSolve(baumgarte, slop, strength);
+				}
+				
+				// would be good to run precompute again here
+			}
+		}*/
+		// we spread the impulse over several iteration
+		// so for each iteration, we apply only a fraction
+		// of the bias impulse
+		for (int i=0; i<positionIteration; i++) {
+			synchronized (sortedManifolds) {
+				for (PersistentManifold m : sortedManifolds) {
+					m.positionSolve();
+				}
+			}
+			
+			synchronized (joints) {
+				for (Joint j : joints) {
+					j.positionSolve();
+				}
+			}
+		}
+	}
+
+	public List<RigidBody> getBodies() {
+		return bodies;
+	}
+
+	public List<SimForce> getForces() {
+		return forces;
+	}
+
+	public Map<BodyPair, PersistentManifold> getManifolds() {
+		return manifolds;
+	}
+
+	public float getLinearDamping() {
+		return linearDamping;
+	}
+
+	public void setLinearDamping(float linearDamping) {
+		this.linearDamping = linearDamping;
+	}
+
+	public float getAngularDamping() {
+		return angularDamping;
+	}
+
+	public void setAngularDamping(float angularDamping) {
+		this.angularDamping = angularDamping;
+	}
+
+	public Vector3 getGravity() {
+		return gravity;
+	}
+
+	public void setGravity(Vector3 gravity) {
+		this.gravity = gravity;
+	}
+}
