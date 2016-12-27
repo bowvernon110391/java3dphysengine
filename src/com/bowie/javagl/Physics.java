@@ -51,7 +51,7 @@ public class Physics {
 	private List<BodyPair> potentialColliders = new ArrayList<>();
 	
 	// this is for profiler
-	private long [] perfTime;
+	private double [] perfTime;
 	private long perfCounter;
 	
 	public Physics(int solverIteration, int positionIteration, float slop, float baumgarte) {	
@@ -61,7 +61,7 @@ public class Physics {
 		this.baumgarte = baumgarte;
 		
 		// initialize profiler
-		perfTime = new long[10];
+		perfTime = new double[10];
 		perfCounter = 0;
 	}
 
@@ -225,33 +225,31 @@ public class Physics {
 //		System.out.println("potential, nbodies, nmanifolds: " + potentialColliders.size()+", " +bodies.size()+
 //				", " + manifolds.size());
 		
-		long timeVelUpdate	= (timer[1] - timer[0])/1000000;
-		long timeRefreshContact	= (timer[2] - timer[1])/1000000;
-		long timeBroadPhase 	= (timer[3] - timer[2])/1000000;
-		long timeNarrowPhase	= (timer[4] - timer[3])/1000000;
-		long timeSortContact	= (timer[5] - timer[4])/1000000;
-		long timePreStep		= (timer[6] - timer[5])/1000000;
-		long timeSolver			= (timer[7] - timer[6])/1000000;
-		long timePositionSolve	= (timer[8] - timer[7])/1000000;
-		long timeIntegrate		= (timer[9] - timer[8])/1000000;
+		double timeVelUpdate	= (double) (timer[1] - timer[0])/1000000;
+		double timeRefreshContact	= (double) (timer[2] - timer[1])/1000000;
+		double timeBroadPhase 	= (double) (timer[3] - timer[2])/1000000;
+		double timeNarrowPhase	= (double) (timer[4] - timer[3])/1000000;
+		double timeSortContact	= (double) (timer[5] - timer[4])/1000000;
+		double timePreStep		= (double) (timer[6] - timer[5])/1000000;
+		double timeSolver			= (double) (timer[7] - timer[6])/1000000;
+		double timePositionSolve	= (double) (timer[8] - timer[7])/1000000;
+		double timeIntegrate		= (double) (timer[9] - timer[8])/1000000;
 		
-		perfTime[0]	+= timeVelUpdate;
-		perfTime[1]	+= timeRefreshContact;
-		perfTime[2] += timeBroadPhase;
-		perfTime[3] += timeNarrowPhase;
-		perfTime[4] += timeSortContact;
-		perfTime[5] += timePreStep;
-		perfTime[6] += timeSolver;
-		perfTime[7] += timePositionSolve;
-		perfTime[8] += timeIntegrate;
+		perfTime[0]	= timeVelUpdate;
+		perfTime[1]	= timeRefreshContact;
+		perfTime[2] = timeBroadPhase;
+		perfTime[3] = timeNarrowPhase;
+		perfTime[4] = timeSortContact;
+		perfTime[5] = timePreStep;
+		perfTime[6] = timeSolver;
+		perfTime[7] = timePositionSolve;
+		perfTime[8] = timeIntegrate;
 		
-		perfCounter ++;
+//		perfCounter ++;
 	}
 	
-	public long getPerformanceTimer(int id) {
-		if (perfCounter == 0)
-			return 0;
-		return perfTime[id] / perfCounter;
+	public double getPerformanceTimer(int id) {
+		return perfTime[id];
 	}
 	
 	public void debugDraw(GL2 gl, boolean drawContacts, boolean drawContactN, boolean drawContactT, boolean drawBBox) {

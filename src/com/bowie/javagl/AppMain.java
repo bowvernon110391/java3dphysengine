@@ -1,6 +1,7 @@
 package com.bowie.javagl;
 
-import java.util.concurrent.locks.ReentrantLock;
+
+import java.util.ConcurrentModificationException;
 
 import com.jogamp.nativewindow.WindowClosingProtocol.WindowClosingMode;
 import com.jogamp.newt.Display;
@@ -42,7 +43,7 @@ public class AppMain {
 	private boolean drawBBox = false;
 	
 	// this is our lock
-	final private ReentrantLock resLock = new ReentrantLock();
+//	final private ReentrantLock resLock = new ReentrantLock();
 	
 	private float yRot = 40;
 	private float xzRot = 0.0f;
@@ -295,10 +296,8 @@ public class AppMain {
 					while (dt >= simDT) {
 						dt -= simDT;
 						
-						synchronized (world) {
-							AppMain.this.update(simDT);
-						}						
-						
+						AppMain.this.update(simDT);
+					
 					}
 				}
 			}
@@ -321,8 +320,14 @@ public class AppMain {
 		GLU glu = GLUgl2.createGLU(gl);
 		glu.gluLookAt(camX, camY, camZ, 0, 0, 0, 0, 1, 0);
 		
-		world.debugDraw(gl, drawContacts, drawContactN, drawContactT, drawBBox);
-		ws.render(gl);
+		synchronized (world) {
+			world.debugDraw(gl, drawContacts, drawContactN, drawContactT, drawBBox);
+		}
+		
+		synchronized (ws) {
+			ws.render(gl);
+		}
+		
 	}
 	
 	public void keyDown(short keyCode) {
@@ -391,13 +396,9 @@ public class AppMain {
 			break;
 			
 		case KeyEvent.VK_R:
-			resLock.lock();
-			try {
+			synchronized (world) {
 				init();
-			} finally {
-				resLock.unlock();
 			}
-			
 			break;
 			
 		case KeyEvent.VK_SPACE:
@@ -427,35 +428,40 @@ public class AppMain {
 	}
 	
 	public void update(float dt) {
-		long timeStep = System.nanoTime();
-		world.step(dt);	
 		
-		timeStep = (System.nanoTime() - timeStep)/1000000;
-		
-		profilerTrigger += dt;
-		
-		// if one second has passed, update information
-		if (profilerTrigger >= 2.0f) {
-			profilerTrigger = 0;
-			String profTxt = 	"upd("+world.getPerformanceTimer(Physics.TIME_UPDATE_VEL)+")"+
-								"ref("+world.getPerformanceTimer(Physics.TIME_REFRESH_CONTACT)+")"+
-								"bphase("+world.getPerformanceTimer(Physics.TIME_BROAD_PHASE)+")"+
-								"nphase("+world.getPerformanceTimer(Physics.TIME_NARROW_PHASE)+")"+
-								"sort("+world.getPerformanceTimer(Physics.TIME_SORT_CONTACT)+")"+
-								"pre("+world.getPerformanceTimer(Physics.TIME_PRE_STEP)+")"+
-								"solver("+world.getPerformanceTimer(Physics.TIME_SOLVER)+")"+
-								"psolver("+world.getPerformanceTimer(Physics.TIME_POSITION_SOLVER)+")"+
-								"intg("+world.getPerformanceTimer(Physics.TIME_INTEGRATE)+")"+
-								"ovl="+timeStep;
-			System.out.println(profTxt);
+		synchronized (world) {
+			long timeStep = System.nanoTime();
+			world.step(dt);	
 			
-			String count = 	"body(" + world.getBodyCount() + ")" +
-							"joint(" + world.getJointCount() + ")" +
-							"force(" + world.getForceCount() + ")" +
-							"pair(" + world.getPairCount() +")" +
-							"manifold(" + world.getManifoldCount()+")";
-			System.out.println(count);
+			double ovl = (double)(System.nanoTime() - timeStep)/1000000;
+			
+			profilerTrigger += dt;
+			
+			// if one second has passed, update information
+			if (profilerTrigger >= 2.0f) {
+				profilerTrigger = 0;
+				String profTxt = "upd(%.2f)ref(%.2f)bphase(%.2f)nphase(%.2f)sort(%.2f)pre(%.2f)solver(%.2f)psolver(%.2f)intg(%.2f)|ovl(%.2f)%n";
+				
+				System.out.printf(profTxt, world.getPerformanceTimer(Physics.TIME_UPDATE_VEL), 
+						world.getPerformanceTimer(Physics.TIME_REFRESH_CONTACT),
+						world.getPerformanceTimer(Physics.TIME_BROAD_PHASE),
+						world.getPerformanceTimer(Physics.TIME_NARROW_PHASE),
+						world.getPerformanceTimer(Physics.TIME_SORT_CONTACT),
+						world.getPerformanceTimer(Physics.TIME_PRE_STEP),
+						world.getPerformanceTimer(Physics.TIME_SOLVER),
+						world.getPerformanceTimer(Physics.TIME_POSITION_SOLVER),
+						world.getPerformanceTimer(Physics.TIME_INTEGRATE),
+						ovl);
+				
+				String count = 	"body(" + world.getBodyCount() + ")" +
+								"joint(" + world.getJointCount() + ")" +
+								"force(" + world.getForceCount() + ")" +
+								"pair(" + world.getPairCount() +")" +
+								"manifold(" + world.getManifoldCount()+")";
+				System.out.println(count);
+			}
 		}
+		
 	}
 	
 	/**
@@ -497,9 +503,12 @@ public class AppMain {
 //				AppMain.this.update(AppMain.this.simDT);
 //			}
 			
-			synchronized (world) {
+			try {
 				AppMain.this.render(drawable.getGL().getGL2(), dt);
+			} catch (ConcurrentModificationException e) {
+				System.out.println("Fucking shit. Dunno why");
 			}
+			
 			
 			
 			
