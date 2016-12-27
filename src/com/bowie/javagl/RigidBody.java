@@ -179,7 +179,9 @@ public class RigidBody {
 		Vector3 gVel = new Vector3(vel);
 		gVel.scale(dt);
 		bbox.grow(gVel);
-//		bbox.grow(Vector3.EPSILON);
+		
+		// add small margin to maximize cache
+		bbox.grow(Vector3.EPSILON);
 	}
 	
 	public Vector3 toLocal(Vector3 p) {

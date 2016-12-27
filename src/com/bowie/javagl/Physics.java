@@ -52,7 +52,6 @@ public class Physics {
 	
 	// this is for profiler
 	private double [] perfTime;
-	private long perfCounter;
 	
 	public Physics(int solverIteration, int positionIteration, float slop, float baumgarte) {	
 		this.solverIteration = solverIteration;
@@ -62,7 +61,6 @@ public class Physics {
 		
 		// initialize profiler
 		perfTime = new double[10];
-		perfCounter = 0;
 	}
 
 	public void addBody(RigidBody b) {
