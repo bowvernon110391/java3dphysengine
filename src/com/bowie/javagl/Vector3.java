@@ -14,6 +14,13 @@ public class Vector3 {
 		x=y=z=0;
 	}
 	
+	public Vector3(Vector3 a, Vector3 b) {
+		// construct vector a-b
+		x = a.x-b.x;
+		y = a.y-b.y;
+		z = a.z-b.z;
+	}
+	
 	public Vector3(float x_, float y_, float z_) {
 		x=x_;
 		y=y_;

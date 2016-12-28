@@ -79,6 +79,7 @@ public class MathHelper {
 		return Quaternion.makeAxisRot(axis, angle);
 	}
 	
+	
 	static public Contact generateContactGJKEPA(RigidBody bA, RigidBody bB) {
 		// do gjk
 		Simplex s = new Simplex();
@@ -159,10 +160,59 @@ public class MathHelper {
 		return proj;
 	}
 	
+	public static Vector3 naiveClosestToTriangle(Vector3 p, Vector3 a, Vector3 b, Vector3 c) {		
+		// list of candidates
+		Vector3 [] candidate = new Vector3[4];
+		
+		candidate[0] = getClosestToTriangle(p, a, b, c);
+		candidate[1] = getClosestToLine(p, a, b, true);
+		candidate[2] = getClosestToLine(p, b, c, true);
+		candidate[3] = getClosestToLine(p, c, a, true);
+		
+		Vector3 ret = candidate[0];
+		float dist = ret.lengthSquared();
+		
+		for (int i=1; i<4; i++) {
+			float newDist = new Vector3(p, candidate[i]).lengthSquared();
+			
+			if (newDist < dist) {
+				dist = newDist;
+				ret = candidate[i];
+			}
+		}
+		
+		return ret;
+	}
+	
+	public static Vector3 naiveClosestToTetrahedron(Vector3 p, Vector3 a, Vector3 b, Vector3 c, Vector3 d) {
+		// list of candidates
+		Vector3 [] candidate = new Vector3[4];
+		
+		candidate[0] = getClosestToTetrahedron(p, a, b, c, d);
+		candidate[1] = naiveClosestToTriangle(p, a, b, c);
+		candidate[2] = naiveClosestToTriangle(p, b, c, d);
+		candidate[3] = naiveClosestToTriangle(p, c, d, a);
+		
+		Vector3 ret = candidate[0];
+		float dist = ret.lengthSquared();
+		
+		for (int i=1; i<4; i++) {
+			float newDist = new Vector3(p, candidate[i]).lengthSquared();
+			
+			if (newDist < dist) {
+				dist = newDist;
+				ret = candidate[i];
+			}
+		}
+		
+		return ret;
+	}
+	
 	public static Vector3 getClosestToTriangle(Vector3 p, Vector3 a, Vector3 b, Vector3 c) {
 		Vector3 bary = computeBarycentric(p, a, b, c);
 		
 		// inside triangle, return combination of abc
+//		System.out.println("tri_bary: " + bary.x + ", " +bary.y+", " +bary.z);
 		if (bary.x >= 0 && bary.y >= 0 && bary.z >= 0) {
 			return new Vector3(
 					bary.x * a.x + bary.y * b.x + bary.z * c.x,
@@ -310,6 +360,42 @@ public class MathHelper {
 		return new Vector3(u, v, w);
 	}
 	
+	public static Vector3 flatten(Vector3 p, Vector3 pPos, Vector3 pNormal) {
+		// normal doesn't need to be normalized
+		Vector3 AP = new Vector3(p, pPos);
+		
+		float uv = Vector3.dot(AP, pNormal);
+		float vv = Vector3.dot(pNormal, pNormal);
+		
+		if (Math.abs(vv) < Vector3.EPSILON) {
+			// whoa, dangerous!!
+			return null;
+		}
+		
+		uv /= vv;
+		
+		return new Vector3(
+				p.x - pNormal.x * uv,
+				p.y - pNormal.y * uv,
+				p.z - pNormal.z * uv
+				);
+	}
+	
+	public static float calcTetraVolume(Vector3 a, Vector3 b, Vector3 c, Vector3 d) {
+		Vector3 v0 = new Vector3();
+		Vector3 v1 = new Vector3();
+		Vector3 v2 = new Vector3();
+		
+		Vector3.sub(b, a, v1);	// AB
+		Vector3.sub(c, a, v0);	// AC
+		Vector3.sub(d, a, v2);	// AD
+		
+		Vector3.cross(v0, v1, Vector3.tmp0);	// AC x AB (so result will face AD)
+		float volABCD = Vector3.dot(Vector3.tmp0, v2);
+		
+		return volABCD;
+	}
+	
 	/**
 	 * computeBarycentric - this one computes barycentric coord of a point to a tetrahedron
 	 * @param p
@@ -446,6 +532,7 @@ public class MathHelper {
 		
 		// we add single support point first
 		simp.addSupportConservatively(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
+//		simp.addSupport(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
 		
 		// direction reversed
 		dir.scale(-1.0f);
@@ -460,6 +547,7 @@ public class MathHelper {
 			System.out.println("gjk closest @ " + iter);
 			// add point to simplex
 			simp.addSupportConservatively(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
+//			simp.addSupport(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
 			
 			// grab closest point to track our distance so far
 			Vector3 closest = simp.closestToOrigin();
@@ -493,7 +581,13 @@ public class MathHelper {
 					return true;
 				}
 				// get new direction
-				dir.setTo(closest.inverse());
+				if (closest.lengthSquared() < Vector3.EPSILON) {
+					System.out.println("gjk closest: UNSAFEEE dir");
+					dir = simp.calcNewDir();
+				} else {
+					System.out.println("gjk closest: safe dir");
+					dir = closest.inverse();
+				}
 			}
 		}
 		return false;

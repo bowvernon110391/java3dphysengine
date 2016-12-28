@@ -25,22 +25,74 @@ import com.jogamp.opengl.util.Animator;
 public class AppMain {	
 	public class AppRes {
 		public AppRes() {
+			
+			Vector3 [] cylinder_vertex = new Vector3[] {
+					new Vector3(-.5f,  .7f, -.5f),
+					new Vector3(-.5f, -.7f, -.5f),
+					
+					new Vector3(-.7f,  .7f, -.0f),
+					new Vector3(-.7f, -.7f, -.0f),
+					
+					new Vector3(-.5f,  .7f,  .5f),
+					new Vector3(-.5f, -.7f,  .5f),
+					
+					new Vector3(-.0f,  .7f,  .7f),
+					new Vector3(-.0f, -.7f,  .7f),
+					
+					new Vector3( .5f,  .7f,  .5f),
+					new Vector3( .5f, -.7f,  .5f),
+					
+					new Vector3( .7f,  .7f, -.0f),
+					new Vector3( .7f, -.7f, -.0f),
+					
+					new Vector3( .5f,  .7f, -.5f),
+					new Vector3( .5f, -.7f, -.5f),
+					
+					new Vector3(-.0f,  .7f, -.7f),
+					new Vector3(-.0f, -.7f, -.7f),
+			};
+			
+			int [][] cylinder_faces = new int[][] {
+					{0, 1, 3, 2},
+					{2, 3, 5, 4},
+					{4, 5, 7, 6},
+					{6, 7, 9, 8},
+					{8, 9, 11, 10},
+					{10, 11, 13, 12},
+					{12, 13, 15, 14},
+					{14, 15, 1, 0},
+					
+					{0, 2, 4, 6, 8, 10, 12, 14},
+					{15, 13, 11, 9, 7, 5, 3, 1}
+			};
+			
 			simp = new Simplex();
 			
 			sA = new Box(1,1,1);
-			sB = new Box(2,1,2);
+			sA = new Convex(cylinder_vertex, cylinder_faces);
+//			sB = new Box(2,1,2);
+			sB = new Convex(cylinder_vertex, cylinder_faces);
 			
-			posA = new Vector3(-2, 0, 0);
-			posB = new Vector3(1, 0, 0);
+			posA = new Vector3(1, 0, -.2f);
+			posB = new Vector3(-1.5f, .5f, -.5f);
 			
-			rotA = Quaternion.makeAxisRot(new Vector3(0, 2, 1), (float) Math.toRadians(25.0));
-			rotB = Quaternion.makeAxisRot(new Vector3(5, 2, 1), (float) Math.toRadians(125.0));
+			rotA = Quaternion.makeAxisRot(new Vector3(1, 2, 1), (float) Math.toRadians(5.0));
+			rotB = Quaternion.makeAxisRot(new Vector3(5, 12, 1), (float) Math.toRadians(120.0));
+			
+			MathHelper.gjkClosestPoint(sA, posA, rotA, sB, posB, rotB, new Vector3(1,0,0), simp);
+			
+			cA = new Vector3();
+			cB = new Vector3();
+			
+			simp.getClosestPoint(cA, cB);
 		}
 		
 		public Simplex simp;
 		public Shape sA, sB;
 		public Vector3 posA, posB;
 		public Quaternion rotA, rotB;
+		
+		public Vector3 cA, cB;
 	};
 	
 	public GLWindow glWindow = null;
@@ -69,7 +121,7 @@ public class AppMain {
 	
 	private float yRot = 40;
 	private float xzRot = 0.0f;
-	private float dist = 10.0f;
+	private float dist = 1.0f;
 	
 	final private float maxYRot = 80.0f;
 	final private float minDist = 1.0f;
@@ -88,10 +140,10 @@ public class AppMain {
 	
 	public void init() {
 		// simplex visualization
-		synchronized (res) {
-			boolean success = MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, res.sB, res.posB, res.rotB,
-					new Vector3(1,0,0), res.simp);
-		}
+//		synchronized (res) {
+//			boolean success = MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, res.sB, res.posB, res.rotB,
+//					new Vector3(1,0,0), res.simp);
+//		}
 		
 		Vector3 [] cylinder_vertex = new Vector3[] {
 				new Vector3(-.5f,  .7f, -.5f),
@@ -334,16 +386,21 @@ public class AppMain {
 	}
 	
 	public void render(GL2 gl, float dt) {
-		gl.glClear(GL2.GL_COLOR_BUFFER_BIT|GL2.GL_DEPTH_BUFFER_BIT);
-		
-		gl.glMatrixMode(GL2.GL_MODELVIEW);
-		gl.glLoadIdentity();
-		
 		float cosYRot = (float) Math.cos(Math.toRadians(yRot));
 		
 		float camX = (float) (Math.sin(Math.toRadians(xzRot)) * cosYRot * dist);
 		float camZ = (float) (Math.cos(Math.toRadians(xzRot)) * cosYRot * dist);
 		float camY = (float) (Math.sin(Math.toRadians(yRot)) * dist);
+		
+		// start rendering
+		gl.glClear(GL2.GL_COLOR_BUFFER_BIT|GL2.GL_DEPTH_BUFFER_BIT);
+		
+		Matrix4.ortho(-dist * 2, dist * 2, -dist * 2, dist * 2, 0.001f, 100.0f, matPers);
+		gl.glMatrixMode(GL2.GL_PROJECTION);
+		gl.glLoadMatrixf(matPers.m, 0);
+		
+		gl.glMatrixMode(GL2.GL_MODELVIEW);
+		gl.glLoadIdentity();
 		
 		GLU glu = GLUgl2.createGLU(gl);
 		glu.gluLookAt(camX, camY, camZ, 0, 0, 0, 0, 1, 0);
@@ -362,7 +419,46 @@ public class AppMain {
 			
 			gl.glColor3f(0, 1, 0);
 			res.sB.render(gl, res.posB, res.rotB);
+			
+			res.simp.debugDraw(gl);
+			
+			// draw two lines
+			Vector3 oA = res.cA;
+			Vector3 oB = res.cB;
+			
+//			gl.glBegin(GL2.GL_POINTS);
+//				gl.glColor3f(1, 0, 0);
+//				gl.glVertex3f(oA.x, oA.y, oA.z);
+//				gl.glVertex3f(oB.x, oB.y, oB.z);
+//			gl.glEnd();
+			
+			gl.glBegin(GL2.GL_LINES);
+			gl.glColor3f(1, 0, 1);
+			gl.glVertex3f(oA.x, oA.y, oA.z);
+			gl.glVertex3f(oB.x, oB.y, oB.z);
+			gl.glEnd();
 		}
+		
+		
+		// draw origin and sheit
+		gl.glBegin(GL2.GL_POINTS);
+		gl.glColor3f(1, 1, 1);
+		gl.glVertex3f(0, 0, 0);
+		gl.glEnd();
+		
+		gl.glBegin(GL2.GL_LINES);
+		gl.glColor3f(1, 0, 0);
+		gl.glVertex3f(0, 0, 0);
+		gl.glVertex3f(1, 0, 0);
+		
+		gl.glColor3f(0, 1, 0);
+		gl.glVertex3f(0, 0, 0);
+		gl.glVertex3f(0, 1, 0);
+		
+		gl.glColor3f(0, 0, 1);
+		gl.glVertex3f(0, 0, 0);
+		gl.glVertex3f(0, 0, 1);
+		gl.glEnd();
 		
 	}
 	
@@ -376,24 +472,85 @@ public class AppMain {
 			glWindow.destroy();
 			break;
 			
-		/*case KeyEvent.VK_W:
-			posA.z -= 0.1f;
+		case KeyEvent.VK_W:
+			synchronized (res) {
+				Quaternion rot = Quaternion.makeAxisRot(new Vector3(-1,0,0), (float) Math.toRadians(10));
+				
+				Quaternion.mul(rot, res.rotA, res.rotA);
+				// redo collision detection
+				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
+						res.sB, res.posB, res.rotB, new Vector3(-1,0,0), res.simp);
+				
+				// grab closest point
+				res.simp.getClosestPoint(res.cA, res.cB);
+			}
 			break;
 		case KeyEvent.VK_S:
-			posA.z += 0.1f;
+			synchronized (res) {
+				Quaternion rot = Quaternion.makeAxisRot(new Vector3(1,0,0), (float) Math.toRadians(10));
+				
+				Quaternion.mul(rot, res.rotA, res.rotA);
+				// redo collision detection
+				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
+						res.sB, res.posB, res.rotB, new Vector3(1,0,0), res.simp);
+				
+				// grab closest point
+				res.simp.getClosestPoint(res.cA, res.cB);
+			}
 			break;
 		case KeyEvent.VK_A:
-			posA.x -= 0.1f;
+			synchronized (res) {
+				Quaternion rot = Quaternion.makeAxisRot(new Vector3(0,1,0), (float) Math.toRadians(10));
+				
+				Quaternion.mul(rot, res.rotA, res.rotA);
+				// redo collision detection
+				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
+						res.sB, res.posB, res.rotB, new Vector3(1,0,0), res.simp);
+				
+				// grab closest point
+				res.simp.getClosestPoint(res.cA, res.cB);
+			}
 			break;
 		case KeyEvent.VK_D:
-			posA.x += 0.1f;
+			synchronized (res) {
+				Quaternion rot = Quaternion.makeAxisRot(new Vector3(0,-1,0), (float) Math.toRadians(10));
+				
+				Quaternion.mul(rot, res.rotA, res.rotA);
+				// redo collision detection
+				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
+						res.sB, res.posB, res.rotB, new Vector3(0,-1,0), res.simp);
+				
+				// grab closest point
+				res.simp.getClosestPoint(res.cA, res.cB);
+			}
 			break;
 		case KeyEvent.VK_Q:
-			posA.y += 0.1f;
+			synchronized (res) {
+				Quaternion rot = Quaternion.makeAxisRot(new Vector3(0,0,1), (float) Math.toRadians(10));
+				
+				Quaternion.mul(rot, res.rotA, res.rotA);
+				// redo collision detection
+				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
+						res.sB, res.posB, res.rotB, new Vector3(0,-1,0), res.simp);
+				
+				// grab closest point
+				res.simp.getClosestPoint(res.cA, res.cB);
+			}
 			break;
+
 		case KeyEvent.VK_E:
-			posA.y -= 0.1f;
-			break;*/
+			synchronized (res) {
+				Quaternion rot = Quaternion.makeAxisRot(new Vector3(0,0,-1), (float) Math.toRadians(10));
+				
+				Quaternion.mul(rot, res.rotA, res.rotA);
+				// redo collision detection
+				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
+						res.sB, res.posB, res.rotB, new Vector3(0,-1,0), res.simp);
+				
+				// grab closest point
+				res.simp.getClosestPoint(res.cA, res.cB);
+			}
+			break;
 			
 		case KeyEvent.VK_B:
 			drawBBox = !drawBBox;
@@ -560,9 +717,10 @@ public class AppMain {
 			gl.glViewport(x, y, width, height);
 			
 			// reset perspective
-			Matrix4.perspective(fov, (float)width/height, 0.1f, 100.0f, matPers);
-			gl.glMatrixMode(GL2.GL_PROJECTION);
-			gl.glLoadMatrixf(matPers.m, 0);
+//			Matrix4.perspective(fov, (float)width/height, 0.1f, 100.0f, matPers);
+//			Matrix4.ortho(-10, 10, -10, 10, 0.1f, 100.0f, matPers);
+//			gl.glMatrixMode(GL2.GL_PROJECTION);
+//			gl.glLoadMatrixf(matPers.m, 0);
 			
 			System.out.println("resized: " + x + ", " + y + ", " + width + ", " + height);
 		}

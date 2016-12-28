@@ -1,6 +1,7 @@
 package com.bowie.javagl;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 import com.jogamp.opengl.GL2;
@@ -69,14 +70,10 @@ public class Simplex {
 			} else if (bary.z <= Vector3.EPSILON) {
 				// c
 				points.remove(c);
-			} else if (bary.w <= Vector3.EPSILON){
+			} else {
 				// force d
 				points.remove(d);
-			} else {
-				// contain origin, return
-				System.out.println("contain origin> shiiit");
-				return;
-			}
+			} 
 			// otherwise, it might be inside, which makes the caller a stupid person
 		} else {
 			System.out.println("Simplex.asc: normal add");
@@ -88,7 +85,7 @@ public class Simplex {
 	
 	public Vector3 closestToOrigin() {
 		// gotta give the closest CSOVertex to origin
-		
+//		System.out.println("closest orig: " + points.size());
 		if (points.size() == 1) {
 			return new Vector3(points.get(0).p);
 		} else if (points.size() == 2) {
@@ -97,10 +94,14 @@ public class Simplex {
 		} else if (points.size() == 3) {
 			// return closest to triangle
 			return MathHelper.getClosestToTriangle(Vector3.ZERO, points.get(0).p, points.get(1).p, points.get(2).p);
+//			return MathHelper.naiveClosestToTriangle(Vector3.ZERO, points.get(0).p, points.get(1).p, points.get(2).p);
 		} else if (points.size() == 4) {
 			//return closest to tetrahedron
 			return MathHelper.getClosestToTetrahedron(Vector3.ZERO, points.get(0).p, points.get(1).p, 
 					points.get(3).p, points.get(2).p);
+			
+//			return MathHelper.naiveClosestToTetrahedron(Vector3.ZERO, points.get(0).p, points.get(1).p, 
+//					points.get(3).p, points.get(2).p);
 		}
 		System.out.println("Whaaat!!!" + points.size());
 		return null;
@@ -177,11 +178,41 @@ public class Simplex {
 			a = points.get(0);
 			b = points.get(1);
 			c = points.get(2);
+			
+			System.out.println("a: " + a.p.x+", "+a.p.y+", "+a.p.z);
+			System.out.println("b: " + b.p.x+", "+b.p.y+", "+b.p.z);
+			System.out.println("c: " + c.p.x+", "+c.p.y+", "+c.p.z);
 
 			// grab closest to it
-			Vector3 closest = MathHelper.getClosestToTriangle(Vector3.ZERO, a.p, b.p, c.p);
+			/*Vector3 p0 = MathHelper.getClosestToTriangle(Vector3.ZERO, a.p, b.p, c.p);
+			Vector3 p1 = MathHelper.getClosestToLine(Vector3.ZERO, a.p, b.p, true);
+			Vector3 p2 = MathHelper.getClosestToLine(Vector3.ZERO, b.p, c.p, true);
+			Vector3 p3 = MathHelper.getClosestToLine(Vector3.ZERO, c.p, a.p, true);
+			
+			
+			Vector3 [] candidates = new Vector3[]{
+					p0, p1, p2, p3
+			};
+			Vector3 closest = p0;
+			float dist = closest.lengthSquared();
+			
+			for (int i=1; i<4; i++) {
+				float canDist = candidates[i].lengthSquared();
+				if (canDist < dist) {
+					dist = canDist;
+					closest = candidates[i];
+				}
+			}*/
+			Vector3 closest = MathHelper.naiveClosestToTriangle(Vector3.ZERO, a.p, b.p, c.p);
 			// compute barycentric coordinate
 			Vector3 bary = MathHelper.computeBarycentric(closest, a.p, b.p, c.p);
+			
+			System.out.println("bary: " + bary.x+", "+bary.y+", "+bary.z);
+			
+//			System.out.println("cl: " + closest.x+ ", "+closest.y+ ", "+closest.z+ ", "+closest.length());
+//			System.out.println("p1: " + p1.x+ ", "+p1.y+ ", "+p1.z+ ", "+p1.length());
+//			System.out.println("p2: " + p2.x+ ", "+p2.y+ ", "+p2.z+ ", "+p2.length());
+//			System.out.println("p3: " + p3.x+ ", "+p3.y+ ", "+p3.z+ ", "+p3.length());
 			
 			// use it to get real coords
 			Vector3 v1, v2, v3;
@@ -207,28 +238,288 @@ public class Simplex {
 			return true;
 		} else if (points.size() == 4) {
 			System.out.println("tetrahedron case!");
-			// usually this is it. gotta get closest on the tetrahedron
+			
+			List<CSOVertex> better = new ArrayList<>();	// we make new list, that is not degenerate
+//			
+			// for every current points
+			for (CSOVertex pt : points) {
+				// if the new list is empty, just insert
+				if (better.isEmpty())
+					better.add(pt);
+				else {
+					// by default, it's safe to add
+					boolean safeToAdd = true;
+					// let's compare with every vertex of better list
+					// OPTIMIZATION!! BEGIN FROM THE BACK!!
+					for (int j = better.size()-1; j >= 0; --j) {
+						CSOVertex pt2 = better.get(j);
+						Vector3 dv = new Vector3(pt.p, pt2.p);
+						if (dv.lengthSquared() < Vector3.EPSILON) {
+							System.out.println("singularity a: " + pt.p.x + ", " + pt.p.y + ", " + pt.p.z);
+							System.out.println("singularity b: " + pt2.p.x + ", " + pt2.p.y + ", " + pt2.p.z);
+							
+							safeToAdd = false;
+							break;	// break for (EARLY OUT)
+						}
+					}
+					// is it safe?
+					if (safeToAdd)
+						better.add(pt);
+				}
+			}
+			
+			System.out.println("Tetrahedron simplified: " + better.size());
+			
+			// replace
+			this.points = better;
+			
+			// if this is indeed degenerate tetrahedro, recurse
+			if (points.size() < 4) {
+				return this.getClosestPoint(bA, bB);
+			}
+			/*// usually this is it. gotta get closest on the tetrahedron
 			a = points.get(0);
 			b = points.get(1);
 			c = points.get(2);
 			d = points.get(3);
 			
-			Vector3 closest = MathHelper.getClosestToTetrahedron(Vector3.ZERO, a.p, b.p, c.p, d.p);
-			Quaternion bary = MathHelper.computeBarycentric(closest, a.p, b.p, c.p, d.p);
+			// compute closest point ON THE FACE OF THE TETRAHEDRON!!! (DISCARDING ANYTHING INSIDE)
+			Vector3 c1 = MathHelper.getClosestToTriangle(Vector3.ZERO, a.p, b.p, c.p);
+			Vector3 c2 = MathHelper.getClosestToTriangle(Vector3.ZERO, b.p, c.p, d.p);
+			Vector3 c3 = MathHelper.getClosestToTriangle(Vector3.ZERO, c.p, d.p, a.p);
+			Vector3 c4 = MathHelper.getClosestToTriangle(Vector3.ZERO, a.p, b.p, d.p);
 			
+			float d1 = c1.lengthSquared();
+			float d2 = c2.lengthSquared();
+			float d3 = c3.lengthSquared();
+			float d4 = c4.lengthSquared();
 			
-			System.out.println("bary: " + bary.x + ", " + bary.y + ", " + bary.z + ", " + bary.w);
+			Vector3 closest = null;
 			
-//			return false;
-			bA.x = a.a.x * bary.x + b.a.x * bary.y + c.a.x * bary.z + d.a.x * bary.w;
-			bA.y = a.a.y * bary.x + b.a.y * bary.y + c.a.y * bary.z + d.a.y * bary.w;
-			bA.z = a.a.z * bary.x + b.a.z * bary.y + c.a.z * bary.z + d.a.z * bary.w;
+			if (d1 < d2 && d1 < d3 && d1 < d4) {
+				closest = c1;
+				// face is abc
+				a = points.get(0);
+				b = points.get(1);
+				c = points.get(2);
+				
+			} else if (d2 < d1 && d2 < d3 && d2 < d4) {
+				closest = c2;
+				// face is bcd
+				a = points.get(1);
+				b = points.get(2);
+				c = points.get(3);
+			} else if (d3 < d1 && d3 < d2 && d3 < d4) {
+				closest = c3;
+				// face is cda
+				a = points.get(2);
+				b = points.get(3);
+				c = points.get(0);
+			} else {
+				closest = c4;
+				// face is abd
+				a = points.get(0);
+				b = points.get(1);
+				c = points.get(3);
+			}
 			
-			bB.x = a.b.x * bary.x + b.b.x * bary.y + c.b.x * bary.z + d.b.x * bary.w;
-			bB.y = a.b.y * bary.x + b.b.y * bary.y + c.b.y * bary.z + d.b.y * bary.w;
-			bB.z = a.b.z * bary.x + b.b.z * bary.y + c.b.z * bary.z + d.b.z * bary.w;
+			System.out.printf("abc: %.4f,  bcd: %.4f, cda: %.4f, abd: %.4f", c1.lengthSquared(), c2.lengthSquared(),
+					c3.lengthSquared(), c4.lengthSquared());
+			
+			Vector3 bary = MathHelper.computeBarycentric(closest, a.p, b.p, c.p);
+			System.out.println("bary: " + bary.x+", "+ bary.y+", "+ bary.z);
+			
+			if (bary.lengthSquared() < Vector3.EPSILON) {
+				System.out.println("DEGENERATE CASE!! FALLBACK TO LINE VS LINE");
+				
+				// check which point is degenerate, and throw them away
+				Vector3 AB = new Vector3(b.p, a.p);
+				Vector3 BC = new Vector3(c.p, b.p);
+				Vector3 CA = new Vector3(a.p, c.p);
+				
+				Vector3 lineU = null;
+				Vector3 lineV = null;
+				
+				CSOVertex va, vb;
+				
+				if (AB.lengthSquared() < Vector3.EPSILON) {
+					// AB is degenerate!!!
+					lineV = BC;
+					lineU = new Vector3(closest, b.p);
+					
+					va = b;
+					vb = c;
+				} else if (BC.lengthSquared() < Vector3.EPSILON) {
+					// BC is degenerate
+					lineV = CA;
+					lineU = new Vector3(closest, c.p);
+					
+					va = c;
+					vb = a;
+				} else {
+					// CA is degenerate
+					lineV = AB;
+					lineU = new Vector3(closest, a.p);
+					
+					va = a;
+					vb = b;
+				}
+				// compute interval
+				float uv = Vector3.dot(lineU, lineV);
+				float vv = Vector3.dot(lineV, lineV);
+				
+				// make sure it's not degenerate too
+				if (Math.abs(vv) < Vector3.EPSILON) {
+					System.out.println("SHEIIIITTT THE LINE IS DEGENERATE TOO!!! RETURNING POINT!!");
+					bA.setTo(a.a);
+					bB.setTo(a.b);
+				} else {
+					uv /= vv;
+					// no need to clamp, already clamped
+					bA.x	= va.a.x * (1.0f-uv) + vb.a.x * uv;
+					bA.y	= va.a.y * (1.0f-uv) + vb.a.y * uv;
+					bA.z	= va.a.z * (1.0f-uv) + vb.a.z * uv;
+					
+					bB.x	= va.b.x * (1.0f-uv) + vb.b.x * uv;
+					bB.y	= va.b.y * (1.0f-uv) + vb.b.y * uv;
+					bB.z	= va.b.z * (1.0f-uv) + vb.b.z * uv;
+				}
+			} else {
+				// safe to compute
+				bA.x	= bary.x * a.a.x + bary.y * b.a.x + bary.z * c.a.x;
+				bA.y	= bary.x * a.a.y + bary.y * b.a.y + bary.z * c.a.y;
+				bA.z	= bary.x * a.a.z + bary.y * b.a.z + bary.z * c.a.z;
+				
+				bB.x	= bary.x * a.b.x + bary.y * b.b.x + bary.z * c.b.x;
+				bB.y	= bary.x * a.b.y + bary.y * b.b.y + bary.z * c.b.y;
+				bB.z	= bary.x * a.b.z + bary.y * b.b.z + bary.z * c.b.z;
+			}*/
+			a = points.get(0);
+			b = points.get(1);
+			c = points.get(2);
+			d = points.get(3);
+			
+			float volTetra = MathHelper.calcTetraVolume(a.p, b.p, c.p, d.p);
+			
+			if (Math.abs(volTetra) < Vector3.EPSILON) {
+				System.out.println("SHEEIIIITTT DEGENERATE TETRAHEDRON!!!");				
+			}
+			
+			CSOVertex [][] tris = new CSOVertex[][] {
+					{a, b, c},
+					{b, c, d},
+					{c, d, a},
+					{a, b, d}
+			};	
+			
+			String [] tri_name = new String[]{
+					"tri ABC",
+					"tri BCD",
+					"tri CDA",
+					"tri ABD"
+			};
+			
+			int id = 0;
+			float dist = -1.0f;	// will update
+			float area = Vector3.EPSILON;
+			Vector3 closest = null;
+			for (int i=0; i<4; i++) {
+				Vector3 cl = MathHelper.naiveClosestToTriangle(Vector3.ZERO, tris[i][0].p, tris[i][1].p, 
+						tris[i][2].p);
+				float na = MathHelper.calcTriangleArea(tris[i][0].p, tris[i][1].p, tris[i][2].p);
+				float nd = cl.lengthSquared();
+				
+				if (na < Vector3.EPSILON)
+					continue;
+				
+				if (nd < dist || dist < 0) {
+					System.out.println("got better triangle: " + tri_name[i] + ", l:" + nd +", a:" + na);
+					dist = nd;
+					area = na;
+					id = i;
+					closest = cl;
+				}
+			}
+			// we got the good triangle. use that
+			System.out.println("got best triangle: " + tri_name[id]);
+			
+			// compute barycentric
+			Vector3 bary = MathHelper.computeBarycentric(closest, tris[id][0].p, tris[id][1].p, tris[id][2].p);
+			
+			System.out.println("best bary: " + bary.x+", "+bary.y+", "+bary.z);
+			
+			bA.x	= tris[id][0].a.x * bary.x + tris[id][1].a.x * bary.y + tris[id][2].a.x * bary.z; 
+			bA.y	= tris[id][0].a.y * bary.x + tris[id][1].a.y * bary.y + tris[id][2].a.y * bary.z;
+			bA.z	= tris[id][0].a.z * bary.x + tris[id][1].a.z * bary.y + tris[id][2].a.z * bary.z;
+			
+			bB.x	= tris[id][0].b.x * bary.x + tris[id][1].b.x * bary.y + tris[id][2].b.x * bary.z; 
+			bB.y	= tris[id][0].b.y * bary.x + tris[id][1].b.y * bary.y + tris[id][2].b.y * bary.z;
+			bB.z	= tris[id][0].b.z * bary.x + tris[id][1].b.z * bary.y + tris[id][2].b.z * bary.z;
 			
 			return true;
+			
+//			// must remove degenerate point
+//			List<CSOVertex> better = new ArrayList<>();	// we make new list, that is not degenerate
+//			
+//			// for every current points
+//			for (CSOVertex pt : points) {
+//				// if the new list is empty, just insert
+//				if (better.isEmpty())
+//					better.add(pt);
+//				else {
+//					// by default, it's safe to add
+//					boolean safeToAdd = true;
+//					// let's compare with every vertex of better list
+//					// OPTIMIZATION!! BEGIN FROM THE BACK!!
+//					for (int j = better.size()-1; j >= 0; --j) {
+//						CSOVertex pt2 = better.get(j);
+//						Vector3 dv = new Vector3(pt.p, pt2.p);
+//						if (dv.lengthSquared() < Vector3.EPSILON) {
+//							System.out.println("singularity a: " + pt.p.x + ", " + pt.p.y + ", " + pt.p.z);
+//							System.out.println("singularity b: " + pt2.p.x + ", " + pt2.p.y + ", " + pt2.p.z);
+//							
+//							safeToAdd = false;
+//							break;	// break for (EARLY OUT)
+//						}
+//					}
+//					// is it safe?
+//					if (safeToAdd)
+//						better.add(pt);
+//				}
+//			}
+//			
+//			System.out.println("Tetrahedron simplified: " + better.size());
+//			
+//			// replace
+//			this.points = better;
+//			
+//			// if this is indeed degenerate tetrahedro, recurse
+//			if (points.size() < 4) {
+//				return this.getClosestPoint(bA, bB);
+//			}
+//			
+//			// whoa!! a valid tetrahedron!!
+//			// simply get closest to the tetrahedron
+//			
+//			
+//			Vector3 closest = MathHelper.getClosestToTetrahedron(Vector3.ZERO, a.p, b.p, c.p, d.p);
+//			
+//			Quaternion bary = MathHelper.computeBarycentric(closest, a.p, b.p, c.p, d.p);
+//			
+//			System.out.println("valid tetra bary: " + bary.x+ ", "+ bary.y+ ", "+ bary.z+ ", "+ bary.w);
+//			
+//			// valid tetrahedron...hmm weird
+//			bA.x = a.a.x * bary.x + b.a.x * bary.y + c.a.x * bary.z + d.a.x * bary.w;
+//			bA.y = a.a.y * bary.x + b.a.y * bary.y + c.a.y * bary.z + d.a.y * bary.w;
+//			bA.z = a.a.z * bary.x + b.a.z * bary.y + c.a.z * bary.z + d.a.z * bary.w;
+//			
+//			bB.x = a.b.x * bary.x + b.b.x * bary.y + c.b.x * bary.z + d.b.x * bary.w;
+//			bB.y = a.b.y * bary.x + b.b.y * bary.y + c.b.y * bary.z + d.b.y * bary.w;
+//			bB.z = a.b.z * bary.x + b.b.z * bary.y + c.b.z * bary.z + d.b.z * bary.w;
+//			
+//			return true;
+			
+//			return true;
 		}
 		return false;
 	}
@@ -255,6 +546,14 @@ public class Simplex {
 				gl.glVertex3f(a.x, a.y, a.z);
 				gl.glVertex3f(b.x, b.y, b.z);
 			gl.glEnd();
+			
+			a = points.get(0).p;
+			b = points.get(1).p;
+			
+			gl.glBegin(GL2.GL_LINES);
+			gl.glVertex3f(a.x, a.y, a.z);
+			gl.glVertex3f(b.x, b.y, b.z);
+		gl.glEnd();
 		} else if (points.size() >=3 ) {
 			// draw line loop
 			Vector3 a = points.get(0).a;
@@ -270,6 +569,16 @@ public class Simplex {
 			a = points.get(0).b;
 			b = points.get(1).b;
 			c = points.get(2).b;
+			
+			gl.glBegin(GL2.GL_LINE_LOOP);
+				gl.glVertex3f(a.x, a.y, a.z);
+				gl.glVertex3f(b.x, b.y, b.z);
+				gl.glVertex3f(c.x, c.y, c.z);
+			gl.glEnd();
+			
+			a = points.get(0).p;
+			b = points.get(1).p;
+			c = points.get(2).p;
 			
 			gl.glBegin(GL2.GL_LINE_LOOP);
 				gl.glVertex3f(a.x, a.y, a.z);
@@ -312,6 +621,24 @@ public class Simplex {
 				gl.glVertex3f(c.x, c.y, c.z);
 				gl.glVertex3f(d.x, d.y, d.z);
 			gl.glEnd();
+			
+			
+			a = points.get(0).p;
+			b = points.get(1).p;
+			c = points.get(2).p;
+			d = points.get(3).p;
+			
+			
+			gl.glBegin(GL2.GL_LINES);
+				gl.glVertex3f(a.x, a.y, a.z);
+				gl.glVertex3f(d.x, d.y, d.z);
+				
+				gl.glVertex3f(b.x, b.y, b.z);
+				gl.glVertex3f(d.x, d.y, d.z);
+				
+				gl.glVertex3f(c.x, c.y, c.z);
+				gl.glVertex3f(d.x, d.y, d.z);
+			gl.glEnd();
 		}
 		
 		float [][] color = new float[][] {
@@ -324,10 +651,16 @@ public class Simplex {
 			for (int i=0; i<points.size(); i++) {
 				Vector3 p = points.get(i).a;
 				Vector3 q = points.get(i).b;
+				Vector3 r = points.get(i).p;
 				gl.glColor3f(color[i][0], color[i][1], color[i][2]);
 				gl.glVertex3f(p.x, p.y, p.z);
 				gl.glVertex3f(q.x, q.y, q.z);
+				gl.glVertex3f(r.x, r.y, r.z);
 			}
+			// draw closest SHIT
+			gl.glColor3f(.2f, .6f, .5f);
+			Vector3 co = this.closestToOrigin();
+			gl.glVertex3f(co.x, co.y, co.z);
 			gl.glEnd();
 	}
 	

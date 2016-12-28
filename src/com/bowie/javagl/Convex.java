@@ -15,7 +15,7 @@ public class Convex extends Shape {
 		
 		// add vertices
 		for (int i=0; i<pts.length; i++) {
-			points.add(pts[i]);
+			points.add(new Vector3(pts[i]));
 		}
 		
 		// create faces
