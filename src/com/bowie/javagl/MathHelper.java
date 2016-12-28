@@ -554,24 +554,24 @@ public class MathHelper {
 		System.out.println("=============GJK CLOSEST START==================");
 		
 		// we add single support point first
-		simp.addSupportConservatively(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
-//		simp.addSupport(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
+//		simp.addSupportConservatively(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
+		simp.addSupport(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
 		
 		// direction reversed
 		dir.scale(-1.0f);
 		
 		// last result
-		float closestDist = 9999999.0f;	// this means we haven't got one
+		float closestDist = Float.MAX_VALUE;	// set to maximum. we will improve our distance
 		
 		int iter = 0;
 		
 		while (iter ++ < GJK_MAX_ITERATION) {
 			// potential to get stuck in infinite loop
-			System.out.println("gjk closest @ " + iter);
+			System.out.println("============GJK ITER============ @ " + iter);
 			// add point to simplex
 			CSOVertex v = Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir);
-			simp.addSupportConservatively(v);
-//			simp.addSupport(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
+//			simp.addSupportConservatively(v);
+			simp.addSupport(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
 			
 			// grab closest point to track our distance so far
 			Vector3 closest = simp.closestToOrigin();
@@ -593,6 +593,7 @@ public class MathHelper {
 				float diff = Math.abs(closestDist - d);
 				
 				if (diff < GJK_MARGIN_ERROR) {
+					System.out.println("============GJK END============= @ " + iter);
 					System.out.printf("gjk closest: terminate with separation distance -> %.6f %n", Math.abs(closestDist-d));
 					return true;
 				} else {
@@ -603,9 +604,9 @@ public class MathHelper {
 						System.out.println("gjk closest: we cannot get better than this -> " + closestDist + " vs " + d);
 						
 						// well, bad vertex added....maybe remove it?
+						System.out.println("gjk closest: BAD VERTEX { " + v.p.x + ", "+v.p.y+","+v.p.z + "}");
 //						simp.removeVertex(v);
 						
-						System.out.println("gjk closest: BAD VERTEX { " + v.p.x + ", "+v.p.y+","+v.p.z + "}");
 						
 //						return true;
 					}
@@ -616,17 +617,112 @@ public class MathHelper {
 //				dir = closest.inverse();
 				
 				// check direction though				
-				if (closest.lengthSquared() < Vector3.EPSILON) {
-					System.out.println("gjk closest: UNSAFEEE dir --> " + closest.lengthSquared());
-					dir = simp.calcNewDir();
-				} else {
-					System.out.println("gjk closest: safe dir");
-					dir = closest.inverse();
+//				if (closest.lengthSquared() < Vector3.EPSILON) {
+//					System.out.println("gjk closest: UNSAFEEE dir --> " + closest.lengthSquared());
+//					dir = simp.calcNewDir();
+//				} else {
+//					System.out.println("gjk closest: safe dir");
+//					dir = closest.inverse();
+//				}
+				Vector3 bestDir = simp.calcNewDir();
+				
+				// default direction is the reverse of the closest vertex
+				dir = closest.inverse();
+				// need to go around if we got ourselves trapped
+				// in bad direction
+				if (d < Vector3.EPSILON) {
+					dir.setTo(bestDir);
+					
+					System.out.println("gjk closest: DIRECTION INVALID --> " + closest.x + ", " + closest.y + ", " + closest.z);
 				}
 			}
 		}
 		return false;
 	}
+	
+//	public static boolean gjkClosestPoint(Shape sA, Vector3 posA, Quaternion rotA, Shape sB, Vector3 posB, Quaternion rotB, Vector3 dir, Simplex simp) {
+//		if (simp == null)
+//			simp = new Simplex();
+//		else
+//			simp.reset();
+//		
+//		System.out.println("=============GJK CLOSEST START==================");
+//		
+//		// we add single support point first
+//		simp.addSupportConservatively(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
+////		simp.addSupport(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
+//		
+//		// direction reversed
+//		dir.scale(-1.0f);
+//		
+//		// last result
+//		float closestDist = Float.MAX_VALUE;	// set to maximum. we will improve our distance
+//		
+//		int iter = 0;
+//		
+//		while (iter ++ < GJK_MAX_ITERATION) {
+//			// potential to get stuck in infinite loop
+//			System.out.println("gjk closest @ " + iter);
+//			// add point to simplex
+//			CSOVertex v = Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir);
+//			simp.addSupportConservatively(v);
+////			simp.addSupport(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
+//			
+//			// grab closest point to track our distance so far
+//			Vector3 closest = simp.closestToOrigin();
+//			
+//			System.out.println("gjk closest: closest= " + closest.x+", "+closest.y+", "+closest.z);
+//			
+//			if (simp.hasOrigin()) {
+//				// welp, cannot be true
+//				System.out.println("gjk closest: simplex has origin");
+//				return false;
+//			} else {
+//				// well, let's see
+//				float d = closest.lengthSquared();
+//				
+//				System.out.println("gjk closest: dist => " + d + ", " + closestDist+ " @ iter " + (iter));
+//				
+//				
+//				// how close?
+//				float diff = Math.abs(closestDist - d);
+//				
+//				if (diff < GJK_MARGIN_ERROR) {
+//					System.out.println("============GJK END============= @ " + iter);
+//					System.out.printf("gjk closest: terminate with separation distance -> %.6f %n", Math.abs(closestDist-d));
+//					return true;
+//				} else {
+//					// the separation is too far... update distance instead
+//					if (d < closestDist) {
+//						closestDist = d;
+//					} else if (d > closestDist) {
+//						System.out.println("gjk closest: we cannot get better than this -> " + closestDist + " vs " + d);
+//						
+//						// well, bad vertex added....maybe remove it?
+//						System.out.println("gjk closest: BAD VERTEX { " + v.p.x + ", "+v.p.y+","+v.p.z + "}");
+////						simp.removeVertex(v);
+//						
+//						
+////						return true;
+//					}
+//					
+//				} 
+//				// get new direction
+////				Vector3 normalDir = simp.calcNewDir();
+////				dir = closest.inverse();
+//				
+//				// check direction though				
+//				if (closest.lengthSquared() < Vector3.EPSILON) {
+//					System.out.println("gjk closest: UNSAFEEE dir --> " + closest.lengthSquared());
+//					dir = simp.calcNewDir();
+//				} else {
+//					System.out.println("gjk closest: safe dir");
+//					dir = closest.inverse();
+//				}
+//			}
+//		}
+//		return false;
+//	}
 	
 	/**
 	 * gjkColdet - perform GJK collision detection between 2 convex shapes

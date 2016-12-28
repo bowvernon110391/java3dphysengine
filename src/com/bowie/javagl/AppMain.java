@@ -124,7 +124,7 @@ public class AppMain {
 	private float xzRot = 0.0f;
 	private float dist = 1.0f;
 	
-	final private float maxYRot = 80.0f;
+	final private float maxYRot = 89.0f;
 	final private float minDist = 1.0f;
 	final private float maxDist = 16.0f;
 	
@@ -480,7 +480,7 @@ public class AppMain {
 				Quaternion.mul(rot, res.rotA, res.rotA);
 				// redo collision detection
 				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
-						res.sB, res.posB, res.rotB, new Vector3(res.posA, res.posB), res.simp);
+						res.sB, res.posB, res.rotB, new Vector3(res.posB, res.posA), res.simp);
 				
 				// grab closest point
 				res.simp.getClosestPoint(res.cA, res.cB);
@@ -493,7 +493,7 @@ public class AppMain {
 				Quaternion.mul(rot, res.rotA, res.rotA);
 				// redo collision detection
 				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
-						res.sB, res.posB, res.rotB, new Vector3(res.posA, res.posB), res.simp);
+						res.sB, res.posB, res.rotB, new Vector3(res.posB, res.posA), res.simp);
 				
 				// grab closest point
 				res.simp.getClosestPoint(res.cA, res.cB);
@@ -506,7 +506,7 @@ public class AppMain {
 				Quaternion.mul(rot, res.rotA, res.rotA);
 				// redo collision detection
 				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
-						res.sB, res.posB, res.rotB, new Vector3(res.posA, res.posB), res.simp);
+						res.sB, res.posB, res.rotB, new Vector3(res.posB, res.posA), res.simp);
 				
 				// grab closest point
 				res.simp.getClosestPoint(res.cA, res.cB);
@@ -519,7 +519,7 @@ public class AppMain {
 				Quaternion.mul(rot, res.rotA, res.rotA);
 				// redo collision detection
 				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
-						res.sB, res.posB, res.rotB, new Vector3(res.posA, res.posB), res.simp);
+						res.sB, res.posB, res.rotB, new Vector3(res.posB, res.posA), res.simp);
 				
 				// grab closest point
 				res.simp.getClosestPoint(res.cA, res.cB);
@@ -532,7 +532,7 @@ public class AppMain {
 				Quaternion.mul(rot, res.rotA, res.rotA);
 				// redo collision detection
 				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
-						res.sB, res.posB, res.rotB, new Vector3(res.posA, res.posB), res.simp);
+						res.sB, res.posB, res.rotB, new Vector3(res.posB, res.posA), res.simp);
 				
 				// grab closest point
 				res.simp.getClosestPoint(res.cA, res.cB);
@@ -546,7 +546,7 @@ public class AppMain {
 				Quaternion.mul(rot, res.rotA, res.rotA);
 				// redo collision detection
 				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
-						res.sB, res.posB, res.rotB, new Vector3(res.posA, res.posB), res.simp);
+						res.sB, res.posB, res.rotB, new Vector3(res.posB, res.posA), res.simp);
 				
 				// grab closest point
 				res.simp.getClosestPoint(res.cA, res.cB);
