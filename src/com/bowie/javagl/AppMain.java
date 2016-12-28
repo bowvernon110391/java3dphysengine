@@ -68,13 +68,14 @@ public class AppMain {
 			
 			simp = new Simplex();
 			
-			sA = new Box(1,1,1);
+//			sA = new Box(1,1,1);
 			sA = new Convex(cylinder_vertex, cylinder_faces);
 //			sB = new Box(2,1,2);
-			sB = new Convex(cylinder_vertex, cylinder_faces);
+			sB = sA;
+//			sB = new Convex(cylinder_vertex, cylinder_faces);
 			
-			posA = new Vector3(1, 0, -.2f);
-			posB = new Vector3(-1.5f, .5f, -.5f);
+			posA = new Vector3(2, 0, -.2f);
+			posB = new Vector3(.0f, 0, 0);
 			
 			rotA = Quaternion.makeAxisRot(new Vector3(1, 2, 1), (float) Math.toRadians(5.0));
 			rotB = Quaternion.makeAxisRot(new Vector3(5, 12, 1), (float) Math.toRadians(120.0));
@@ -474,12 +475,12 @@ public class AppMain {
 			
 		case KeyEvent.VK_W:
 			synchronized (res) {
-				Quaternion rot = Quaternion.makeAxisRot(new Vector3(-1,0,0), (float) Math.toRadians(10));
+				Quaternion rot = Quaternion.makeAxisRot(new Vector3(1,0,0), (float) Math.toRadians(-10));
 				
 				Quaternion.mul(rot, res.rotA, res.rotA);
 				// redo collision detection
 				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
-						res.sB, res.posB, res.rotB, new Vector3(-1,0,0), res.simp);
+						res.sB, res.posB, res.rotB, new Vector3(res.posA, res.posB), res.simp);
 				
 				// grab closest point
 				res.simp.getClosestPoint(res.cA, res.cB);
@@ -492,7 +493,7 @@ public class AppMain {
 				Quaternion.mul(rot, res.rotA, res.rotA);
 				// redo collision detection
 				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
-						res.sB, res.posB, res.rotB, new Vector3(1,0,0), res.simp);
+						res.sB, res.posB, res.rotB, new Vector3(res.posA, res.posB), res.simp);
 				
 				// grab closest point
 				res.simp.getClosestPoint(res.cA, res.cB);
@@ -505,7 +506,7 @@ public class AppMain {
 				Quaternion.mul(rot, res.rotA, res.rotA);
 				// redo collision detection
 				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
-						res.sB, res.posB, res.rotB, new Vector3(1,0,0), res.simp);
+						res.sB, res.posB, res.rotB, new Vector3(res.posA, res.posB), res.simp);
 				
 				// grab closest point
 				res.simp.getClosestPoint(res.cA, res.cB);
@@ -513,12 +514,12 @@ public class AppMain {
 			break;
 		case KeyEvent.VK_D:
 			synchronized (res) {
-				Quaternion rot = Quaternion.makeAxisRot(new Vector3(0,-1,0), (float) Math.toRadians(10));
+				Quaternion rot = Quaternion.makeAxisRot(new Vector3(0,1,0), (float) Math.toRadians(-10));
 				
 				Quaternion.mul(rot, res.rotA, res.rotA);
 				// redo collision detection
 				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
-						res.sB, res.posB, res.rotB, new Vector3(0,-1,0), res.simp);
+						res.sB, res.posB, res.rotB, new Vector3(res.posA, res.posB), res.simp);
 				
 				// grab closest point
 				res.simp.getClosestPoint(res.cA, res.cB);
@@ -531,7 +532,7 @@ public class AppMain {
 				Quaternion.mul(rot, res.rotA, res.rotA);
 				// redo collision detection
 				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
-						res.sB, res.posB, res.rotB, new Vector3(0,-1,0), res.simp);
+						res.sB, res.posB, res.rotB, new Vector3(res.posA, res.posB), res.simp);
 				
 				// grab closest point
 				res.simp.getClosestPoint(res.cA, res.cB);
@@ -540,12 +541,12 @@ public class AppMain {
 
 		case KeyEvent.VK_E:
 			synchronized (res) {
-				Quaternion rot = Quaternion.makeAxisRot(new Vector3(0,0,-1), (float) Math.toRadians(10));
+				Quaternion rot = Quaternion.makeAxisRot(new Vector3(0,0,1), (float) Math.toRadians(-10));
 				
 				Quaternion.mul(rot, res.rotA, res.rotA);
 				// redo collision detection
 				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
-						res.sB, res.posB, res.rotB, new Vector3(0,-1,0), res.simp);
+						res.sB, res.posB, res.rotB, new Vector3(res.posA, res.posB), res.simp);
 				
 				// grab closest point
 				res.simp.getClosestPoint(res.cA, res.cB);
@@ -566,17 +567,37 @@ public class AppMain {
 			break;
 			
 		case KeyEvent.VK_UP:
-			wpPos.z -= 0.1f;
+			synchronized (res) {
+				res.posA.z -= .1f;
+			}
 			break;
 		case KeyEvent.VK_DOWN:
-			wpPos.z += 0.1f;
+			synchronized (res) {
+				res.posA.z += .1f;
+			}
 			break;
 		case KeyEvent.VK_LEFT:
-			wpPos.x -= 0.1f;
+			synchronized (res) {
+				res.posA.x -= .1f;
+			}
 			break;
 		case KeyEvent.VK_RIGHT:
-			wpPos.x += 0.1f;
-			break;
+			synchronized (res) {
+				res.posA.x += .1f;
+			}
+			break;	
+//		case KeyEvent.VK_UP:
+//			wpPos.z -= 0.1f;
+//			break;
+//		case KeyEvent.VK_DOWN:
+//			wpPos.z += 0.1f;
+//			break;
+//		case KeyEvent.VK_LEFT:
+//			wpPos.x -= 0.1f;
+//			break;
+//		case KeyEvent.VK_RIGHT:
+//			wpPos.x += 0.1f;
+//			break;
 			
 		case KeyEvent.VK_3:
 		case KeyEvent.VK_4:

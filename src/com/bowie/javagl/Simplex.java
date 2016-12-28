@@ -45,6 +45,10 @@ public class Simplex {
 		}
 	}
 	
+	public void removeVertex(CSOVertex v) {
+		points.remove(v);
+	}
+	
 	public void addSupportConservatively(CSOVertex v) {
 		// gotta add, while removing unnecessary vertex
 		if (points.size() >= 4) {
@@ -57,23 +61,33 @@ public class Simplex {
 			d = points.get(3);
 			
 			// which vertex is redundant?
+			
+			// THIS WILL FAIL IF TETRAHEDRON IS DEGENERATE!!!
+			// BUT IF IT'S THE CASE, THEN REMOVING ANY POINT IS FINE!!!
 			Quaternion bary = MathHelper.computeBarycentric(v.p, a.p, b.p, c.p, d.p);
 			
 			System.out.println("Simplex.asc: bary: " + bary.x+", "+bary.y+", "+bary.z+", "+bary.w);
 			
 			if (bary.x <= Vector3.EPSILON) {
+				System.out.println("Simplex.asc: removing a");
 				// a
 				points.remove(a);
 			} else if (bary.y <= Vector3.EPSILON) {
+				System.out.println("Simplex.asc: removing b");
 				// b
 				points.remove(b);
 			} else if (bary.z <= Vector3.EPSILON) {
+				System.out.println("Simplex.asc: removing c");
 				// c
 				points.remove(c);
-			} else {
+			} else if (bary.w <= Vector3.EPSILON) {
+				System.out.println("Simplex.asc: removing d");
 				// force d
 				points.remove(d);
-			} 
+			} else {
+				// SHOULD NEVER HAPPEN THOUGH
+				System.out.println("Simplex.asc: WAAAA! inside case!!!");
+			}
 			// otherwise, it might be inside, which makes the caller a stupid person
 		} else {
 			System.out.println("Simplex.asc: normal add");
@@ -85,7 +99,7 @@ public class Simplex {
 	
 	public Vector3 closestToOrigin() {
 		// gotta give the closest CSOVertex to origin
-//		System.out.println("closest orig: " + points.size());
+		System.out.println("closest orig: " + points.size());
 		if (points.size() == 1) {
 			return new Vector3(points.get(0).p);
 		} else if (points.size() == 2) {
@@ -93,15 +107,28 @@ public class Simplex {
 			return MathHelper.getClosestToLine(Vector3.ZERO, points.get(0).p, points.get(1).p, true);
 		} else if (points.size() == 3) {
 			// return closest to triangle
-			return MathHelper.getClosestToTriangle(Vector3.ZERO, points.get(0).p, points.get(1).p, points.get(2).p);
-//			return MathHelper.naiveClosestToTriangle(Vector3.ZERO, points.get(0).p, points.get(1).p, points.get(2).p);
+			float triArea = MathHelper.calcTriangleArea(points.get(0).p, points.get(1).p, points.get(2).p);
+			
+			if (triArea < Vector3.EPSILON) {
+				System.out.println("closest to origin: degenerate simplex triangle case: " + triArea);
+			}
+//			return MathHelper.getClosestToTriangle(Vector3.ZERO, points.get(0).p, points.get(1).p, points.get(2).p);
+			return MathHelper.naiveClosestToTriangle(Vector3.ZERO, points.get(0).p, points.get(1).p, points.get(2).p);
 		} else if (points.size() == 4) {
 			//return closest to tetrahedron
-			return MathHelper.getClosestToTetrahedron(Vector3.ZERO, points.get(0).p, points.get(1).p, 
-					points.get(3).p, points.get(2).p);
 			
-//			return MathHelper.naiveClosestToTetrahedron(Vector3.ZERO, points.get(0).p, points.get(1).p, 
+			// WAIITTT!!! DOESN'T WORK IF SIMPLEX IS DEGENERATE!!!!
+			float tetraVol = MathHelper.calcTetraVolume(points.get(0).p, points.get(1).p, points.get(2).p, points.get(3).p);
+			
+			if (Math.abs(tetraVol) < Vector3.EPSILON) {
+				System.out.println("closest to origin: degenerate simplex tetrahedron case:" + tetraVol);
+			}
+			
+//			return MathHelper.getClosestToTetrahedron(Vector3.ZERO, points.get(0).p, points.get(1).p, 
 //					points.get(3).p, points.get(2).p);
+			
+			return MathHelper.naiveClosestToTetrahedron(Vector3.ZERO, points.get(0).p, points.get(1).p, 
+					points.get(3).p, points.get(2).p);
 		}
 		System.out.println("Whaaat!!!" + points.size());
 		return null;
@@ -203,6 +230,29 @@ public class Simplex {
 					closest = candidates[i];
 				}
 			}*/
+			// WAITT!!! SEE IF IT'S DEGENERATE
+			float triArea = MathHelper.calcTriangleArea(a.p, b.p, c.p);
+			
+			if (triArea < Vector3.EPSILON) {
+				System.out.println("Simplex.getClosestPoint: degenerate triangle!! removing degenerate point...");
+				// we need to remove offending points
+				if (Vector3.distBetween(a.p, b.p) < Vector3.EPSILON) {
+					// a and b are coincident. remove one, then recurse
+					points.remove(a);
+					System.out.println("Simplex.getClosestPoint: a and b are coincident!!");
+				} else if (Vector3.distBetween(b.p, c.p) < Vector3.EPSILON) {
+					// b and c
+					points.remove(b);
+					System.out.println("Simplex.getClosestPoint: b and c are coincident!!");
+				} else {
+					// must be between c and a
+					points.remove(c);
+					System.out.println("Simplex.getClosestPoint: c and a are coincident!!");
+				}
+				
+				return this.getClosestPoint(bA, bB);
+			}
+			
 			Vector3 closest = MathHelper.naiveClosestToTriangle(Vector3.ZERO, a.p, b.p, c.p);
 			// compute barycentric coordinate
 			Vector3 bary = MathHelper.computeBarycentric(closest, a.p, b.p, c.p);
@@ -239,44 +289,44 @@ public class Simplex {
 		} else if (points.size() == 4) {
 			System.out.println("tetrahedron case!");
 			
-			List<CSOVertex> better = new ArrayList<>();	// we make new list, that is not degenerate
+//			List<CSOVertex> better = new ArrayList<>();	// we make new list, that is not degenerate
+////			
+//			// for every current points
+//			for (CSOVertex pt : points) {
+//				// if the new list is empty, just insert
+//				if (better.isEmpty())
+//					better.add(pt);
+//				else {
+//					// by default, it's safe to add
+//					boolean safeToAdd = true;
+//					// let's compare with every vertex of better list
+//					// OPTIMIZATION!! BEGIN FROM THE BACK!!
+//					for (int j = better.size()-1; j >= 0; --j) {
+//						CSOVertex pt2 = better.get(j);
+//						Vector3 dv = new Vector3(pt.p, pt2.p);
+//						if (dv.lengthSquared() < Vector3.EPSILON) {
+//							System.out.println("singularity a: " + pt.p.x + ", " + pt.p.y + ", " + pt.p.z);
+//							System.out.println("singularity b: " + pt2.p.x + ", " + pt2.p.y + ", " + pt2.p.z);
+//							
+//							safeToAdd = false;
+//							break;	// break for (EARLY OUT)
+//						}
+//					}
+//					// is it safe?
+//					if (safeToAdd)
+//						better.add(pt);
+//				}
+//			}
 //			
-			// for every current points
-			for (CSOVertex pt : points) {
-				// if the new list is empty, just insert
-				if (better.isEmpty())
-					better.add(pt);
-				else {
-					// by default, it's safe to add
-					boolean safeToAdd = true;
-					// let's compare with every vertex of better list
-					// OPTIMIZATION!! BEGIN FROM THE BACK!!
-					for (int j = better.size()-1; j >= 0; --j) {
-						CSOVertex pt2 = better.get(j);
-						Vector3 dv = new Vector3(pt.p, pt2.p);
-						if (dv.lengthSquared() < Vector3.EPSILON) {
-							System.out.println("singularity a: " + pt.p.x + ", " + pt.p.y + ", " + pt.p.z);
-							System.out.println("singularity b: " + pt2.p.x + ", " + pt2.p.y + ", " + pt2.p.z);
-							
-							safeToAdd = false;
-							break;	// break for (EARLY OUT)
-						}
-					}
-					// is it safe?
-					if (safeToAdd)
-						better.add(pt);
-				}
-			}
-			
-			System.out.println("Tetrahedron simplified: " + better.size());
-			
-			// replace
-			this.points = better;
-			
-			// if this is indeed degenerate tetrahedro, recurse
-			if (points.size() < 4) {
-				return this.getClosestPoint(bA, bB);
-			}
+//			System.out.println("Tetrahedron simplified: " + better.size());
+//			
+//			// replace
+//			this.points = better;
+//			
+//			// if this is indeed degenerate tetrahedro, recurse
+//			if (points.size() < 4) {
+//				return this.getClosestPoint(bA, bB);
+//			}
 			/*// usually this is it. gotta get closest on the tetrahedron
 			a = points.get(0);
 			b = points.get(1);
@@ -403,6 +453,32 @@ public class Simplex {
 			
 			if (Math.abs(volTetra) < Vector3.EPSILON) {
 				System.out.println("SHEEIIIITTT DEGENERATE TETRAHEDRON!!!");				
+			} else {
+				// simply grab closest to tetrahedron
+//				Vector3 cl = MathHelper.naiveClosestToTetrahedron(Vector3.ZERO, a.p, b.p, c.p, d.p);
+				System.out.println("NON DEGENERATE TETRAHEDRON: REMOVING BACKFACES!!");
+				Quaternion tb = MathHelper.computeBarycentric(Vector3.ZERO, a.p, b.p, c.p, d.p);
+				
+//				// remove unncessary point
+//				if (tb.x < Vector3.EPSILON) {
+//					points.remove(a);
+//					System.out.println("POINT A IS BACKFACING ORIGIN!");
+//				} else if (tb.y < Vector3.EPSILON) { 
+//					points.remove(b);
+//					System.out.println("POINT A IS BACKFACING ORIGIN!");
+//				} else if (tb.z < Vector3.EPSILON) {
+//					points.remove(c);
+//					System.out.println("POINT A IS BACKFACING ORIGIN!");
+//				} else if (tb.w < Vector3.EPSILON) {
+//					points.remove(d);
+//					System.out.println("POINT A IS BACKFACING ORIGIN!");
+//				} else {
+//					System.out.println("ORIGIN INSIDE, IDIOOOOOOOT!!!");
+//					return false;
+//				}
+//				
+//				// recurse
+//				return this.getClosestPoint(bA, bB);
 			}
 			
 			CSOVertex [][] tris = new CSOVertex[][] {
@@ -658,10 +734,10 @@ public class Simplex {
 				gl.glVertex3f(r.x, r.y, r.z);
 			}
 			// draw closest SHIT
-			gl.glColor3f(.2f, .6f, .5f);
-			Vector3 co = this.closestToOrigin();
-			gl.glVertex3f(co.x, co.y, co.z);
-			gl.glEnd();
+//			gl.glColor3f(.2f, .6f, .5f);
+//			Vector3 co = this.closestToOrigin();
+//			gl.glVertex3f(co.x, co.y, co.z);
+//			gl.glEnd();
 	}
 	
 	public int size() {

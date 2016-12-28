@@ -126,6 +126,14 @@ public class Vector3 {
 		return a.x*b.x + a.y*b.y + a.z*b.z;
 	}
 	
+	public static float distBetween(Vector3 a, Vector3 b) {
+		float dx = a.x - b.x;
+		float dy = a.y - b.y;
+		float dz = a.z - b.z;
+		
+		return dx*dx + dy*dy + dz*dz;
+	}
+	
 	//cross product
 	//c = a x b
 	public static void cross(Vector3 a, Vector3 b, Vector3 c) {
