@@ -40,6 +40,12 @@ public class Vector3 {
 		z = v.z;
 	}
 	
+	public void setTo(float tx, float ty, float tz) {
+		x = tx;
+		y = ty;
+		z = tz;
+	}
+	
 	public Vector3 inverse() {
 		return new Vector3(-x, -y, -z);
 	}

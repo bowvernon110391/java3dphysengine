@@ -66,13 +66,11 @@ public class AppMain {
 					{15, 13, 11, 9, 7, 5, 3, 1}
 			};
 			
-			simp = new Simplex();
-			
-//			sA = new Box(1,1,1);
-			sA = new Convex(cylinder_vertex, cylinder_faces);
+			sA = new Box(1,1,1);
+//			sA = new Convex(cylinder_vertex, cylinder_faces);
 //			sB = new Box(2,1,2);
-			sB = sA;
-//			sB = new Convex(cylinder_vertex, cylinder_faces);
+//			sB = sA;
+			sB = new Convex(cylinder_vertex, cylinder_faces);
 			
 			posA = new Vector3(2, 0, -.2f);
 			posB = new Vector3(.0f, 0, 0);
@@ -80,12 +78,7 @@ public class AppMain {
 			rotA = Quaternion.makeAxisRot(new Vector3(1, 2, 1), (float) Math.toRadians(5.0));
 			rotB = Quaternion.makeAxisRot(new Vector3(5, 12, 1), (float) Math.toRadians(120.0));
 			
-			MathHelper.gjkClosestPoint(sA, posA, rotA, sB, posB, rotB, new Vector3(1,0,0), simp);
-			
-			cA = new Vector3();
-			cB = new Vector3();
-			
-			simp.getClosestPoint(cA, cB);
+			simp = new Simplex(sA, posA, rotA, sB, posB, rotB, new Vector3(1,0,0));
 		}
 		
 		public Simplex simp;
@@ -424,20 +417,23 @@ public class AppMain {
 			res.simp.debugDraw(gl);
 			
 			// draw two lines
-			Vector3 oA = res.cA;
-			Vector3 oB = res.cB;
-			
-//			gl.glBegin(GL2.GL_POINTS);
-//				gl.glColor3f(1, 0, 0);
+//			if (res.simp.converged) {
+//				Vector3 oA = res.cA;
+//				Vector3 oB = res.cB;
+//				
+//				gl.glBegin(GL2.GL_POINTS);
+//					gl.glColor3f(1, 0, 1);
+//					gl.glVertex3f(oA.x, oA.y, oA.z);
+//					gl.glVertex3f(oB.x, oB.y, oB.z);
+//				gl.glEnd();
+//				
+//				gl.glBegin(GL2.GL_LINES);
+//				gl.glColor3f(1, 0, 1);
 //				gl.glVertex3f(oA.x, oA.y, oA.z);
 //				gl.glVertex3f(oB.x, oB.y, oB.z);
-//			gl.glEnd();
+//				gl.glEnd();
+//			}
 			
-			gl.glBegin(GL2.GL_LINES);
-			gl.glColor3f(1, 0, 1);
-			gl.glVertex3f(oA.x, oA.y, oA.z);
-			gl.glVertex3f(oB.x, oB.y, oB.z);
-			gl.glEnd();
 		}
 		
 		
@@ -479,11 +475,7 @@ public class AppMain {
 				
 				Quaternion.mul(rot, res.rotA, res.rotA);
 				// redo collision detection
-				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
-						res.sB, res.posB, res.rotB, new Vector3(res.posB, res.posA), res.simp);
-				
-				// grab closest point
-				res.simp.getClosestPoint(res.cA, res.cB);
+				res.simp.reset();
 			}
 			break;
 		case KeyEvent.VK_S:
@@ -492,11 +484,7 @@ public class AppMain {
 				
 				Quaternion.mul(rot, res.rotA, res.rotA);
 				// redo collision detection
-				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
-						res.sB, res.posB, res.rotB, new Vector3(res.posB, res.posA), res.simp);
-				
-				// grab closest point
-				res.simp.getClosestPoint(res.cA, res.cB);
+				res.simp.reset();
 			}
 			break;
 		case KeyEvent.VK_A:
@@ -505,11 +493,7 @@ public class AppMain {
 				
 				Quaternion.mul(rot, res.rotA, res.rotA);
 				// redo collision detection
-				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
-						res.sB, res.posB, res.rotB, new Vector3(res.posB, res.posA), res.simp);
-				
-				// grab closest point
-				res.simp.getClosestPoint(res.cA, res.cB);
+				res.simp.reset();
 			}
 			break;
 		case KeyEvent.VK_D:
@@ -518,11 +502,7 @@ public class AppMain {
 				
 				Quaternion.mul(rot, res.rotA, res.rotA);
 				// redo collision detection
-				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
-						res.sB, res.posB, res.rotB, new Vector3(res.posB, res.posA), res.simp);
-				
-				// grab closest point
-				res.simp.getClosestPoint(res.cA, res.cB);
+				res.simp.reset();
 			}
 			break;
 		case KeyEvent.VK_Q:
@@ -531,11 +511,7 @@ public class AppMain {
 				
 				Quaternion.mul(rot, res.rotA, res.rotA);
 				// redo collision detection
-				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
-						res.sB, res.posB, res.rotB, new Vector3(res.posB, res.posA), res.simp);
-				
-				// grab closest point
-				res.simp.getClosestPoint(res.cA, res.cB);
+				res.simp.reset();
 			}
 			break;
 
@@ -545,11 +521,7 @@ public class AppMain {
 				
 				Quaternion.mul(rot, res.rotA, res.rotA);
 				// redo collision detection
-				MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, 
-						res.sB, res.posB, res.rotB, new Vector3(res.posB, res.posA), res.simp);
-				
-				// grab closest point
-				res.simp.getClosestPoint(res.cA, res.cB);
+				res.simp.reset();
 			}
 			break;
 			
@@ -569,21 +541,25 @@ public class AppMain {
 		case KeyEvent.VK_UP:
 			synchronized (res) {
 				res.posA.z -= .1f;
+				res.simp.reset();
 			}
 			break;
 		case KeyEvent.VK_DOWN:
 			synchronized (res) {
 				res.posA.z += .1f;
+				res.simp.reset();
 			}
 			break;
 		case KeyEvent.VK_LEFT:
 			synchronized (res) {
 				res.posA.x -= .1f;
+				res.simp.reset();
 			}
 			break;
 		case KeyEvent.VK_RIGHT:
 			synchronized (res) {
 				res.posA.x += .1f;
+				res.simp.reset();
 			}
 			break;	
 //		case KeyEvent.VK_UP:
@@ -616,10 +592,12 @@ public class AppMain {
 			break;
 			
 		case KeyEvent.VK_SPACE:
-			synchronized (ws) {
-				ws.setActive(!ws.isActive());
+//			synchronized (ws) {
+//				ws.setActive(!ws.isActive());
+//			}
+			synchronized (res) {
+				res.simp.advance();
 			}
-			
 			break;
 		}		
 		

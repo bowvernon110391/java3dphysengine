@@ -15,12 +15,128 @@ public class Simplex {
 	private List<CSOVertex> points;
 	public Vector3 lastDir = new Vector3(1, 0, 0);
 	
+	
+	//=============STRICTLY TEST DATA=====================================
+	public Shape sA, sB;
+	public Vector3 posA, posB;
+	public Quaternion rotA, rotB;
+	
+	public int iter = 0;	// the first iteration
+	public boolean converged = false;
+	public float closestDist = Float.MAX_VALUE;
+	public Vector3 currentDir = new Vector3(1, 0, 0);
+	public Vector3 closestPointToOrigin = null;
+	
+	public Vector3 cA, cB;
+	//=============STRICTLY TEST DATA=====================================
+	
+	
+	public Simplex(Shape sA, Vector3 posA, Quaternion rotA, Shape sB, Vector3 posB, Quaternion rotB, Vector3 initDir) {
+		this();
+		
+		// then do another things
+		this.sA	= sA;
+		this.sB	= sB;
+		this.posA = posA;
+		this.posB = posB;
+		this.rotA = rotA;
+		this.rotB = rotB;
+		
+		// make sure direction is valid
+		if (initDir.lengthSquared() > Vector3.EPSILON)
+			this.currentDir.setTo(initDir);
+		else
+			this.currentDir.setTo(1,0,0);
+		
+		iter = 0;
+		closestDist = Float.MAX_VALUE;
+		converged = false;
+		closestPointToOrigin = null;
+		cA = null;
+		cB = null;
+		
+		// add 2 points
+		this.addSupportConservatively(grabMinkowskiDiff());
+		// flip
+		this.currentDir.scale(-1.0f);
+	}
+	
+	public CSOVertex grabMinkowskiDiff() {
+		// based on current direction..find it
+		return Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, currentDir);
+	}
+	
+	public boolean advance() {
+		// do not do anything if we have converged
+		if (converged)
+			return true;
+		// increment counter
+		System.out.println("SIMPLEX.ADVANCE -- " + iter);
+		iter++;
+		// we add point
+		this.addSupportConservatively(grabMinkowskiDiff());
+		// now we find closest from origin..but we must check first if we're degenerate
+		if (isDegenerate()) {
+			// warn user
+			System.out.println("SIMPLEX WARNING!! DEGENERATE!!! ANY DIRECTION OR DISTANCE MIGHT NOT BE VALID NOW!! @ " + points.size());
+		}
+		
+		// we have at least 2 point, so simply add shit based on closest direction
+		closestPointToOrigin = closestToOrigin();
+		float d = closestPointToOrigin.lengthSquared();
+		
+		// check if we're close
+		if (Math.abs(closestDist - d) < MathHelper.GJK_MARGIN_ERROR) {
+			System.out.printf("SIMPLEX CONVERGED WITH SEP_DIST: %f%n", Math.abs(closestDist - d));
+			converged = true;
+			
+			// compute closest point
+			cA = new Vector3();
+			cB = new Vector3();
+			
+			this.getClosestPoint(cA, cB);
+			
+			return true;
+		}
+		
+		// Gotta warn too if distance is shit
+		if (d > closestDist) {
+			System.out.println("SIMPLEX WARNING!! RECENT DISTANCE IS FARTHER!!: " + d + " > " + closestDist);
+		} else {
+			System.out.printf("SIMPLEX MSG: updating closest distance from %.4f -> %.4f %n", closestDist, d);
+			// we're getting better, update
+			closestDist = d;
+		}
+		
+		// welp, no luck. so simply refine direction
+		// check if the direction is valid though
+		if (d < Vector3.EPSILON)
+			this.currentDir.setTo(calcNewDir());
+		else
+			this.currentDir.setTo(closestPointToOrigin.inverse());
+		
+		// we have not yet converged
+		return false;
+	}
+	
+	//=============STRICTLY TEST DATA=====================================
+	
 	public Simplex() {
 		points = new ArrayList<>(4);
 	}
 	
 	public void reset() {
 		points.clear();
+		
+		//=============STRICTLY TEST DATA=====================================
+		iter = 0;
+		closestDist = Float.MAX_VALUE;
+		currentDir.setTo(1, 0, 0);
+		converged = false;
+		closestPointToOrigin = null;
+		cA = null;
+		cB = null;
+		//=============STRICTLY TEST DATA=====================================
 	}
 	
 	public void addSupport(CSOVertex v) {
@@ -64,29 +180,50 @@ public class Simplex {
 			
 			// THIS WILL FAIL IF TETRAHEDRON IS DEGENERATE!!!
 			// BUT IF IT'S THE CASE, THEN REMOVING ANY POINT IS FINE!!!
-			Quaternion bary = MathHelper.computeBarycentric(v.p, a.p, b.p, c.p, d.p);
+			Vector3 cp = MathHelper.naiveClosestToTetrahedron(Vector3.ZERO, a.p, b.p, c.p, d.p);
+			Quaternion bary = MathHelper.computeBarycentric(cp, a.p, b.p, c.p, d.p);
 			
-			System.out.println("Simplex.asc: bary: " + bary.x+", "+bary.y+", "+bary.z+", "+bary.w);
+			/*float [] dots = new float[]{
+					-Vector3.dot(cp, a.p),
+					-Vector3.dot(cp, b.p),
+					-Vector3.dot(cp, c.p),
+					-Vector3.dot(cp, d.p)
+			};*/
 			
-			if (bary.x <= Vector3.EPSILON) {
-				System.out.println("Simplex.asc: removing a");
-				// a
-				points.remove(a);
-			} else if (bary.y <= Vector3.EPSILON) {
-				System.out.println("Simplex.asc: removing b");
-				// b
-				points.remove(b);
-			} else if (bary.z <= Vector3.EPSILON) {
-				System.out.println("Simplex.asc: removing c");
-				// c
-				points.remove(c);
-			} else if (bary.w <= Vector3.EPSILON) {
-				System.out.println("Simplex.asc: removing d");
-				// force d
-				points.remove(d);
+			System.out.printf("Simplex.asc: bary: %.6f, %.6f, %.6f, %.6f%n", bary.x, bary.y, bary.z, bary.w);
+//			System.out.printf("Simplex.asc: dots: %.6f, %.6f, %.6f, %.6f%n", dots[0], dots[1], dots[2], dots[3]);
+			
+			// remove the minima
+			float maxD = Float.MAX_VALUE;
+			CSOVertex r = null;
+			
+			if (bary.x < maxD) {
+				maxD = bary.x;
+				r = a;
+			}
+			
+			if (bary.y < maxD) {
+				maxD = bary.y;
+				r = b;
+			}
+			
+			if (bary.z < maxD) {
+				maxD = bary.z;
+				r = c;
+			}
+			
+			if (bary.w < maxD) {
+				maxD = bary.w;
+				r = d;
+			}
+			
+			if (r != null) {
+				// gotta remove
+				System.out.printf("SIMPLEX.ASC: gotta remove %d -> %f%n", points.indexOf(r), maxD);
+				points.remove(r);
 			} else {
-				// SHOULD NEVER HAPPEN THOUGH
-				System.out.println("Simplex.asc: WAAAA! inside case!!!");
+				System.out.println("SIMPLEX.ASC: well, just remove first point");
+				points.remove(0);
 			}
 			// otherwise, it might be inside, which makes the caller a stupid person
 		} else {
@@ -133,7 +270,26 @@ public class Simplex {
 		System.out.println("Whaaat!!!" + points.size());
 		return null;
 	}
-
+	
+	public boolean isDegenerate() {
+		// only a triangle or tetrahedron could be degenerate
+		// WAIT!! A LINE IS POSSIBLE
+		if (points.size() == 2) {
+			// line
+			return Vector3.distBetween(points.get(0).p, points.get(1).p) < Vector3.EPSILON;
+		} else if (points.size() == 3) {
+			//triangle
+			return MathHelper.calcTriangleArea(points.get(0).p, points.get(1).p, points.get(2).p) < Vector3.EPSILON;
+		} else if (points.size() == 4) {
+			// tetrahedron
+			return Math.abs(
+					MathHelper.calcTetraVolume(points.get(0).p, points.get(1).p, points.get(2).p, points.get(3).p)
+					) < Vector3.EPSILON;
+		}		
+		
+		// point cannot be degenerate
+		return false;
+	}
 	
 	public boolean getClosestPoint(Vector3 bA, Vector3 bB) {
 		// depending on the simplex size
@@ -721,7 +877,7 @@ public class Simplex {
 				{1,0,0},
 				{0,1,0},
 				{0,0,1},
-				{0.5f,1,1}
+				{1,1,0}
 			};
 			gl.glBegin(GL2.GL_POINTS);
 			for (int i=0; i<points.size(); i++) {
@@ -734,10 +890,37 @@ public class Simplex {
 				gl.glVertex3f(r.x, r.y, r.z);
 			}
 			// draw closest SHIT
-//			gl.glColor3f(.2f, .6f, .5f);
-//			Vector3 co = this.closestToOrigin();
-//			gl.glVertex3f(co.x, co.y, co.z);
-//			gl.glEnd();
+			gl.glColor3f(.2f, .6f, .5f);
+			Vector3 co = closestPointToOrigin;
+			
+			if (co != null) {
+				gl.glVertex3f(co.x, co.y, co.z);
+			}
+			
+			gl.glEnd();
+			
+			// draw line from closest to the origin
+			if (co != null) {
+				gl.glBegin(GL2.GL_LINES);
+				
+				gl.glColor3f(1, 1, 0.4f);
+				
+				gl.glVertex3f(0,0,0);
+				gl.glVertex3f(co.x, co.y, co.z);
+				
+				gl.glEnd();
+			}
+			
+			// draw line connecting closest point
+			if (cA != null && cB != null) {
+				gl.glBegin(GL2.GL_LINES);
+				gl.glColor3f(1, 0.4f, 1);
+				
+				gl.glVertex3f(cA.x, cA.y, cA.z);
+				gl.glVertex3f(cB.x, cB.y, cB.z);
+				
+				gl.glEnd();
+			}
 	}
 	
 	public int size() {

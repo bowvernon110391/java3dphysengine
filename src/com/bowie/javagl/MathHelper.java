@@ -576,7 +576,7 @@ public class MathHelper {
 			// grab closest point to track our distance so far
 			Vector3 closest = simp.closestToOrigin();
 			
-			System.out.println("gjk closest: closest= " + closest.x+", "+closest.y+", "+closest.z);
+			System.out.println("gjk closest: closest= " + closest.x+", "+closest.y+", "+closest.z + " DEGENEREATE? " + simp.isDegenerate() + " : " + simp.size());
 			
 			if (simp.hasOrigin()) {
 				// welp, cannot be true
@@ -786,6 +786,10 @@ public class MathHelper {
 		Vector3.cross(AB, AC, AC);
 		return Vector3.dot(AC, AC);
 	}
+	
+//	public static Vector3 triRawNormal(Vector3 a, Vector3 b, Vector3 c) {
+//		
+//	}
 	
 	/**
 	 * epaExecute	- execute EPA on pair of shapes
