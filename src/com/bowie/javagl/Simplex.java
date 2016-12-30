@@ -90,6 +90,9 @@ public class Simplex {
 			System.out.printf("SIMPLEX CONVERGED WITH SEP_DIST: %f%n", Math.abs(closestDist - d));
 			converged = true;
 			
+			// make sure our simplex isn't degenerate
+			ceaseDegeneracy();
+			
 			// compute closest point
 			cA = new Vector3();
 			cB = new Vector3();
@@ -271,6 +274,80 @@ public class Simplex {
 		return null;
 	}
 	
+	public void ceaseDegeneracy() {
+		// let's stop this once and for all
+		while (isDegenerate()) {
+			// start removing point. depending on the case though
+			if (points.size() == 2) {
+				System.out.println("ceaseDegeneracy: line case. removing point b");
+				// line case. simply remove any point
+				// let's say point b
+				points.remove(1);
+			} else if (points.size() == 3) {
+				// triangle is quite involved. remove incident edge
+				CSOVertex a = points.get(0);
+				CSOVertex b = points.get(1);
+				
+				// removing one at a time
+				// if still degenerate, will be refined at next iteration
+				if (Vector3.distBetween(a.p, b.p) < Vector3.EPSILON) {
+					System.out.println("ceaseDegeneracy: triangle case. removing point b");
+					// remove b
+					points.remove(1);
+				} else {
+					System.out.println("ceaseDegeneracy: triangle case. removing point c");
+					// remove either a or c. in this case we pick c
+					points.remove(2);
+				}
+			} else if (points.size() == 4) {
+				// we keep the best triangle in this case. We could remove degenerate triangle
+				// instead, but nope. This will do, albeit more expensive
+				CSOVertex removed = null;
+				float closestDist = Float.MAX_VALUE;
+				float dist;
+				
+				CSOVertex a = points.get(0);
+				CSOVertex b = points.get(1);
+				CSOVertex c = points.get(2);
+				CSOVertex d = points.get(3);
+				
+				// check origin against abc
+				dist = MathHelper.naiveClosestToTriangle(Vector3.ZERO, a.p, b.p, c.p).lengthSquared();
+				if (dist < closestDist) {
+					closestDist = dist;
+					removed = d;
+				}
+				
+				// check origin against bcd
+				dist = MathHelper.naiveClosestToTriangle(Vector3.ZERO, b.p, c.p, d.p).lengthSquared();
+				if (dist < closestDist) {
+					closestDist = dist;
+					removed = a;
+				}
+				
+				// check origin against cda
+				dist = MathHelper.naiveClosestToTriangle(Vector3.ZERO, c.p, d.p, a.p).lengthSquared();
+				if (dist < closestDist) {
+					closestDist = dist;
+					removed = b;
+				}
+				
+				// check origin against abd
+				dist = MathHelper.naiveClosestToTriangle(Vector3.ZERO, a.p, b.p, d.p).lengthSquared();
+				if (dist < closestDist) {
+					closestDist = dist;
+					removed = c;
+				}
+				
+				// we remove it, hopefully it gets better next time
+				if (removed != null) {
+					System.out.println("ceaseDegeneracy: tetrahedron case. removing point id -> " + points.indexOf(removed));
+					points.remove(removed);
+				}
+			}
+		}
+	}
+	
 	public boolean isDegenerate() {
 		// only a triangle or tetrahedron could be degenerate
 		// WAIT!! A LINE IS POSSIBLE
@@ -309,8 +386,10 @@ public class Simplex {
 			a = points.get(0);
 			b = points.get(1);
 			
-			Vector3 u = a.p.inverse();
+			Vector3 u = new Vector3();
 			Vector3 v = new Vector3();
+			
+			Vector3.sub(closestPointToOrigin, a.p, u);
 			Vector3.sub(b.p, a.p, v);
 			
 			float uv = Vector3.dot(u, v);
@@ -409,7 +488,7 @@ public class Simplex {
 				return this.getClosestPoint(bA, bB);
 			}
 			
-			Vector3 closest = MathHelper.naiveClosestToTriangle(Vector3.ZERO, a.p, b.p, c.p);
+			Vector3 closest = closestPointToOrigin; //MathHelper.naiveClosestToTriangle(Vector3.ZERO, a.p, b.p, c.p);
 			// compute barycentric coordinate
 			Vector3 bary = MathHelper.computeBarycentric(closest, a.p, b.p, c.p);
 			
@@ -605,15 +684,37 @@ public class Simplex {
 			c = points.get(2);
 			d = points.get(3);
 			
+			
 			float volTetra = MathHelper.calcTetraVolume(a.p, b.p, c.p, d.p);
+			
+			if (Math.abs(volTetra) < Vector3.EPSILON) {
+				// this shouldn't be possible
+				System.out.println("SHEEIIIITTT DEGENERATE TETRAHEDRON!!!");
+				return false;
+			} else {
+				// non degenerate would be fine
+				System.out.println("NON DEGENERATE TETRAHEDRON!! GOOD!!");
+				
+				Quaternion bary = MathHelper.computeBarycentric(closestPointToOrigin, a.p, b.p, c.p, d.p);
+				
+				bA.x = a.a.x * bary.x + b.a.x * bary.y + c.a.x * bary.z + d.a.x * bary.w;
+				bA.y = a.a.y * bary.x + b.a.y * bary.y + c.a.y * bary.z + d.a.y * bary.w;
+				bA.z = a.a.z * bary.x + b.a.z * bary.y + c.a.z * bary.z + d.a.z * bary.w;
+				
+				bB.x = a.b.x * bary.x + b.b.x * bary.y + c.b.x * bary.z + d.b.x * bary.w;
+				bB.y = a.b.y * bary.x + b.b.y * bary.y + c.b.y * bary.z + d.b.y * bary.w;
+				bB.z = a.b.z * bary.x + b.b.z * bary.y + c.b.z * bary.z + d.b.z * bary.w;
+				
+				return true;
+			}
+			/*float volTetra = MathHelper.calcTetraVolume(a.p, b.p, c.p, d.p);
 			
 			if (Math.abs(volTetra) < Vector3.EPSILON) {
 				System.out.println("SHEEIIIITTT DEGENERATE TETRAHEDRON!!!");				
 			} else {
 				// simply grab closest to tetrahedron
 //				Vector3 cl = MathHelper.naiveClosestToTetrahedron(Vector3.ZERO, a.p, b.p, c.p, d.p);
-				System.out.println("NON DEGENERATE TETRAHEDRON: REMOVING BACKFACES!!");
-				Quaternion tb = MathHelper.computeBarycentric(Vector3.ZERO, a.p, b.p, c.p, d.p);
+				System.out.println("NON DEGENERATE TETRAHEDRON: Still only interested in best face though!!");
 				
 //				// remove unncessary point
 //				if (tb.x < Vector3.EPSILON) {
@@ -688,7 +789,7 @@ public class Simplex {
 			bB.y	= tris[id][0].b.y * bary.x + tris[id][1].b.y * bary.y + tris[id][2].b.y * bary.z;
 			bB.z	= tris[id][0].b.z * bary.x + tris[id][1].b.z * bary.y + tris[id][2].b.z * bary.z;
 			
-			return true;
+			return true;*/
 			
 //			// must remove degenerate point
 //			List<CSOVertex> better = new ArrayList<>();	// we make new list, that is not degenerate

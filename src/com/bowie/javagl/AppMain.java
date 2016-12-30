@@ -66,11 +66,11 @@ public class AppMain {
 					{15, 13, 11, 9, 7, 5, 3, 1}
 			};
 			
-			sA = new Box(1,1,1);
-//			sA = new Convex(cylinder_vertex, cylinder_faces);
-//			sB = new Box(2,1,2);
+//			sA = new Box(1,1,1);
+			sA = new Convex(cylinder_vertex, cylinder_faces);
+			sB = new Box(2,1,2);
 //			sB = sA;
-			sB = new Convex(cylinder_vertex, cylinder_faces);
+//			sB = new Convex(cylinder_vertex, cylinder_faces);
 			
 			posA = new Vector3(2, 0, -.2f);
 			posB = new Vector3(.0f, 0, 0);
@@ -414,6 +414,7 @@ public class AppMain {
 			gl.glColor3f(0, 1, 0);
 			res.sB.render(gl, res.posB, res.rotB);
 			
+			gl.glColor3f(.25f, .5f, .8f);
 			res.simp.debugDraw(gl);
 			
 			// draw two lines
