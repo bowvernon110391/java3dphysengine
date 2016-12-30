@@ -11,6 +11,7 @@ public class DistanceJoint implements Joint {
 	protected Vector3 n;	// the normal (pointing to A)
 	protected float kMass;	// the mass of the constraint
 //	protected Vector3 accumP;	// acuumulated
+	protected float accumP;	// it's just a scalar
 	protected float bias;	// bias term
 
 	public DistanceJoint(RigidBody bA, RigidBody bB, Vector3 lA, Vector3 lB, float dist, float stiffness) {
@@ -26,6 +27,8 @@ public class DistanceJoint implements Joint {
 //		accumP = new Vector3();
 		length = dist;
 		this.stiffness = stiffness;
+		
+		accumP = 0;
 	}
 	
 	@Override
@@ -63,8 +66,10 @@ public class DistanceJoint implements Joint {
 		
 		// should do warmstart here, applying old impulse,
 		// but the joint would blow away!!
-//		bodyA.applyImpulse(accumP, worldA);
-//		bodyB.applyImpulse(accumP.inverse(), worldB);
+		Vector3 j = new Vector3(n);
+		j.scale(accumP);
+		bodyA.applyImpulse(j, worldA);
+		bodyB.applyImpulse(j.inverse(), worldB);
 	}
 
 	@Override
@@ -79,6 +84,8 @@ public class DistanceJoint implements Joint {
 		
 		bodyA.applyImpulse(j, worldA);
 		bodyB.applyImpulse(j.inverse(), worldB);
+		
+		accumP += jMag;
 	}
 
 	@Override

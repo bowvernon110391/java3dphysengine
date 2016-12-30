@@ -22,7 +22,7 @@ public class Simplex {
 	public Quaternion rotA, rotB;
 	
 	public int iter = 0;	// the first iteration
-	public boolean converged = false;
+	public boolean converged = false, containsOrigin = false;
 	public float closestDist = Float.MAX_VALUE;
 	public Vector3 currentDir = new Vector3(1, 0, 0);
 	public Vector3 closestPointToOrigin = null;
@@ -55,6 +55,7 @@ public class Simplex {
 		iter = 0;
 		closestDist = Float.MAX_VALUE;
 		converged = false;
+		containsOrigin = false;
 		closestPointToOrigin = null;
 		cA = null;
 		cB = null;
@@ -74,6 +75,8 @@ public class Simplex {
 		// do not do anything if we have converged
 		if (converged)
 			return true;
+		if (containsOrigin)
+			return false;
 		// increment counter
 		System.out.println("SIMPLEX.ADVANCE -- " + iter);
 		iter++;
@@ -92,6 +95,7 @@ public class Simplex {
 		// check if we have origin inside
 		if (hasOrigin()) {
 			System.out.println("SIMPLEX CONTAIN ORIGIN!! EXITING...");
+			containsOrigin = true;
 			return false;
 		}
 		
@@ -147,6 +151,7 @@ public class Simplex {
 		closestDist = Float.MAX_VALUE;
 		currentDir.setTo(1, 0, 0);
 		converged = false;
+		containsOrigin = false;
 		closestPointToOrigin = null;
 		cA = null;
 		cB = null;

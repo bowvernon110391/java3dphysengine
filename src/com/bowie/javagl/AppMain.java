@@ -68,9 +68,9 @@ public class AppMain {
 			
 //			sA = new Box(1,1,1);
 			sA = new Convex(cylinder_vertex, cylinder_faces);
-			sB = new Box(2,1,2);
+//			sB = new Box(2,1,2);
 //			sB = sA;
-//			sB = new Convex(cylinder_vertex, cylinder_faces);
+			sB = new Convex(cylinder_vertex, cylinder_faces);
 			
 			posA = new Vector3(2, 0, -.2f);
 			posB = new Vector3(.0f, 0, 0);
