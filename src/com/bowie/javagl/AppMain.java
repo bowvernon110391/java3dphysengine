@@ -23,71 +23,7 @@ import com.jogamp.opengl.glu.gl2.GLUgl2;
 import com.jogamp.opengl.util.Animator;
 
 public class AppMain {	
-	public class AppRes {
-		public AppRes() {
-			
-			Vector3 [] cylinder_vertex = new Vector3[] {
-					new Vector3(-.5f,  .7f, -.5f),
-					new Vector3(-.5f, -.7f, -.5f),
-					
-					new Vector3(-.7f,  .7f, -.0f),
-					new Vector3(-.7f, -.7f, -.0f),
-					
-					new Vector3(-.5f,  .7f,  .5f),
-					new Vector3(-.5f, -.7f,  .5f),
-					
-					new Vector3(-.0f,  .7f,  .7f),
-					new Vector3(-.0f, -.7f,  .7f),
-					
-					new Vector3( .5f,  .7f,  .5f),
-					new Vector3( .5f, -.7f,  .5f),
-					
-					new Vector3( .7f,  .7f, -.0f),
-					new Vector3( .7f, -.7f, -.0f),
-					
-					new Vector3( .5f,  .7f, -.5f),
-					new Vector3( .5f, -.7f, -.5f),
-					
-					new Vector3(-.0f,  .7f, -.7f),
-					new Vector3(-.0f, -.7f, -.7f),
-			};
-			
-			int [][] cylinder_faces = new int[][] {
-					{0, 1, 3, 2},
-					{2, 3, 5, 4},
-					{4, 5, 7, 6},
-					{6, 7, 9, 8},
-					{8, 9, 11, 10},
-					{10, 11, 13, 12},
-					{12, 13, 15, 14},
-					{14, 15, 1, 0},
-					
-					{0, 2, 4, 6, 8, 10, 12, 14},
-					{15, 13, 11, 9, 7, 5, 3, 1}
-			};
-			
-//			sA = new Box(1,1,1);
-			sA = new Convex(cylinder_vertex, cylinder_faces);
-//			sB = new Box(2,1,2);
-//			sB = sA;
-			sB = new Convex(cylinder_vertex, cylinder_faces);
-			
-			posA = new Vector3(2, 0, -.2f);
-			posB = new Vector3(.0f, 0, 0);
-			
-			rotA = Quaternion.makeAxisRot(new Vector3(1, 2, 1), (float) Math.toRadians(5.0));
-			rotB = Quaternion.makeAxisRot(new Vector3(5, 12, 1), (float) Math.toRadians(120.0));
-			
-			simp = new Simplex(sA, posA, rotA, sB, posB, rotB, new Vector3(1,0,0));
-		}
-		
-		public Simplex simp;
-		public Shape sA, sB;
-		public Vector3 posA, posB;
-		public Quaternion rotA, rotB;
-		
-		public Vector3 cA, cB;
-	};
+	
 	
 	public GLWindow glWindow = null;
 	public Animator anim = null;	// GUI thread
@@ -96,12 +32,11 @@ public class AppMain {
 	// shared between thread!!
 	volatile private float dt = 0;		// delta time
 	
-	private AppRes res  = new AppRes();
 	
 	private float fov = 80.0f;
 	private Matrix4 matPers = new Matrix4();
 	
-	private Physics world;
+	private Physics world = new Physics(7, 5, .04f, .5f);
 	private WorldSpring ws;
 	private WorldPinJoint wp;
 	
@@ -115,7 +50,7 @@ public class AppMain {
 	
 	private float yRot = 40;
 	private float xzRot = 0.0f;
-	private float dist = 1.0f;
+	private float dist = 10.0f;
 	
 	final private float maxYRot = 89.0f;
 	final private float minDist = 1.0f;
@@ -138,6 +73,7 @@ public class AppMain {
 //			boolean success = MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, res.sB, res.posB, res.rotB,
 //					new Vector3(1,0,0), res.simp);
 //		}
+		world.reset();
 		
 		Vector3 [] cylinder_vertex = new Vector3[] {
 				new Vector3(-.5f,  .7f, -.5f),
@@ -197,135 +133,137 @@ public class AppMain {
 				{0, 3, 4},
 				{0, 4, 5},
 				{0, 5, 6},
+				{0, 6, 7},
 				{0, 7, 8},
+				{0, 8, 1},
 				{8,7,6,5,4,3,2,1}
 		};
 		
-		Box boxShape = new Box(1,1,1);
-		Convex cylinderShape = new Convex(cylinder_vertex, cylinder_faces);
-		Convex coneShape = new Convex(cone_vertex, cone_faces);
+		world.setAngularDamping(.01f);
+		world.setLinearDamping(.002f);
 		
-		// spawn the world
-		world = new Physics(7, 5, 0.03f, 0.6f);	//  7 solver iteration, 5 position iteration, 2.5cm slop, 0.6f baumgarte stabilization
-		world.setLinearDamping(0.005f);		// 0.5% linear dissipation
-		world.setAngularDamping(0.0025f);	// 0.25% angular dissipation
-		world.setGravity(new Vector3(0, -9.8f, 0));
+		// add contact generator
+		ContactGenerator cg = new ConvexShapeContactGenerator();
+		
+		world.registerContactGenerator(Shape.SHAPE_BOX, Shape.SHAPE_BOX, cg);
+		world.registerContactGenerator(Shape.SHAPE_BOX, Shape.SHAPE_CONVEX, cg);
+		world.registerContactGenerator(Shape.SHAPE_CONVEX, Shape.SHAPE_CONVEX, cg);
+		world.registerContactGenerator(Shape.SHAPE_CORE, Shape.SHAPE_CORE, new CoreShapesContactGenerator());
+		
+		// a collections of shape
+		// no-core version
+		Shape box1 = new Box(1, .75f, 1.25f);
+		Shape cylinder = new Convex(cylinder_vertex, cylinder_faces);
+		Shape cone = new Convex(cone_vertex, cone_faces);
+		Shape box2 = new Box(1.5f, 1.f, 1.75f);
 		
 		
-//		collide = MathHelper.gjkColDet(boxA, posA, rotA, boxB, posB, rotB, new Vector3(0,1,0), simp);
-		// create the world
-		RigidBody bodyA, bodyB;
-		// bottom plate
-		bodyB = new RigidBody(-1.0f, new Box(16, 0.5f, 16));
-		bodyB.setFixed(true);
-		bodyB.setRestitution(0.984f);
-		bodyB.setFriction(0.25f);
-		world.addBody(bodyB);
+		Shape ybox = new Box(16, 1, 16);
+		Shape xbox = new Box(1, 16, 16);
+		Shape zbox = new Box(16, 16, 1);
 		
-		// right plate
-		bodyB = new RigidBody(-1.0f, new Box(.5f, 16, 16));
-		bodyB.setFixed(true);
-		bodyB.setRestitution(0.84f);
-		bodyB.setFriction(0.25f);
-		bodyB.setPos(new Vector3(8, 8, 0));
-		world.addBody(bodyB);
+		// core version
+//		Shape box1 = new CoreShape(new Box(1, .75f, 1.25f), .1f);
+//		Shape cylinder = new CoreShape(new Convex(cylinder_vertex, cylinder_faces),.1f);
+//		Shape cone = new CoreShape(new Convex(cone_vertex, cone_faces), .1f);
+//		Shape box2 = new CoreShape(new Box(1.5f, 1.f, 1.75f), .1f);
+//		
+//		
+//		Shape ybox = new CoreShape(new Box(16, 1, 16), .1f);
+//		Shape xbox = new CoreShape(new Box(1, 16, 16), .1f);
+//		Shape zbox = new CoreShape(new Box(16, 16, 1), .1f);
 		
-		// left plate
-		bodyB = new RigidBody(-1.0f, new Box(.5f, 16, 16));
-		bodyB.setFixed(true);
-		bodyB.setRestitution(0.84f);
-		bodyB.setFriction(0.25f);
-		bodyB.setPos(new Vector3(-8, 8, 0));
-		world.addBody(bodyB);
+		// build world boundaries		
+		RigidBody bA = new RigidBody(-1.0f, ybox);
+		bA.setFriction(.4f);
+		bA.setPos(new Vector3(0, -2, 0));
+		bA.setFixed(true);
+		bA.setRestitution(.5f);
 		
-		// front plate
-		bodyB = new RigidBody(-1.0f, new Box(16, 16, .5f));
-		bodyB.setFixed(true);
-		bodyB.setRestitution(0.84f);
-		bodyB.setFriction(0.25f);
-		bodyB.setPos(new Vector3(0, 8, 8));
-		world.addBody(bodyB);
+		world.addBody(bA);
 		
-		// rear plate
-		bodyB = new RigidBody(-1.0f, new Box(16, 16, .5f));
-		bodyB.setFixed(true);
-		bodyB.setRestitution(0.84f);
-		bodyB.setFriction(0.25f);
-		bodyB.setPos(new Vector3(0, 8, -8));
-		world.addBody(bodyB);
+		bA = new RigidBody(-1.0f, xbox);
+		bA.setFriction(.4f);
+		bA.setPos(new Vector3(-8.5f, 6.5f, 0));
+		bA.setFixed(true);
+		bA.setRestitution(.5f);
 		
-		bodyA = new RigidBody(10.0f, cylinderShape);
-		bodyA.setPos(new Vector3(-4, 4, 0));
-		bodyA.setFriction(0.8f);
-		world.addBody(bodyA);
+		world.addBody(bA);
 		
-		// add world pinner joint
-		wp = new WorldPinJoint(new Vector3(-2, 8, -3), bodyA, new Vector3(1, 1, 0.5f));
-		world.addJoint(wp);
+		bA = new RigidBody(-1.0f, xbox);
+		bA.setFriction(.4f);
+		bA.setPos(new Vector3( 8.5f, 6.5f, 0));
+		bA.setFixed(true);
+		bA.setRestitution(.5f);
 		
-		// add cone
-		bodyB = new RigidBody(15.0f, coneShape);
-		bodyB.setPos(new Vector3(-4, 1, 0));
-		world.addBody(bodyB);
+		world.addBody(bA);
 		
-		// add ball joint
-		world.addJoint(new BallJoint(bodyA, new Vector3(0.5f, -1.0f, 0), bodyB, new Vector3(0.25f, 0.75f, 0)));
+		bA = new RigidBody(-1.0f, zbox);
+		bA.setFriction(.4f);
+		bA.setPos(new Vector3(0, 6.5f, 8.5f));
+		bA.setFixed(true);
+		bA.setRestitution(.5f);
 		
-		bodyA = new RigidBody(20.0f, cylinderShape);
-		bodyA.setPos(new Vector3(-4, 1, 0));
-		world.addBody(bodyA);
+		world.addBody(bA);
 		
-		// add ball joint
-		world.addJoint(new BallJoint(bodyA, new Vector3(0.5f, .75f, 0), bodyB, new Vector3(-.5f, -.75f, 0)));
+		bA = new RigidBody(-1.0f, zbox);
+		bA.setFriction(.4f);
+		bA.setPos(new Vector3(0, 6.5f, -8.5f));
+		bA.setFixed(true);
+		bA.setRestitution(.5f);
 		
-		// add another joint
-		bodyB = new RigidBody(20.0f, cylinderShape);
-		bodyB.setPos(new Vector3(-5, 1, 0));
-		world.addBody(bodyB);
+		world.addBody(bA);
 		
-		world.addJoint(new DistanceJoint(bodyA, bodyB, new Vector3(-.5f, .7f, 0), new Vector3(.5f, .5f, .5f), 1, 1.f));
+		// add bodies
 		
-		RigidBody smallBox = new RigidBody(20, coneShape);
-		smallBox.setFriction(0.2f);
-		smallBox.setPos(new Vector3(-5, 0.5f, 0));
-		world.addBody(smallBox);
+		RigidBody bB = new RigidBody(10.0f, box1);
+		bB.setFriction(.2f);
+		bB.setPos(new Vector3(0, 5, -5));		
+		world.addBody(bB);
 		
-		world.addJoint(new DistanceJoint(smallBox, bodyB, new Vector3(0,.5f,0), new Vector3(-.5f,-.5f,-.5f), 1, 1));
-		// add world spring
-		ws = new WorldSpring(new Vector3(-2, 7, 3), new Vector3(0.4f, -0.5f, 0.0f), smallBox, 1, 166, 0.7f);
-		world.addSimForce(ws);
+		world.addJoint(new WorldPinJoint(new Vector3(-4, 5, 0), bB, new Vector3(-.5f, -.8f, .5f)));
 		
-		// add more bodies?
-		Box box = new Box(1.5f, 1.0f, 1.5f);
-		float y = 0.5f;
+		bA = new RigidBody(10.0f, cylinder);
+		bA.setFriction(.2f);
+		bA.setPos(new Vector3(0.5f, 7, -5));		
+		world.addBody(bA);
+		
+		world.addJoint(new BallJoint(bA, new Vector3(.5f, .95f, .5f), bB, new Vector3(.5f, .8f, .5f)));
+		
+		bB = new RigidBody(10.0f, cone);
+		bB.setFriction(.2f);
+		bB.setPos(new Vector3(-.5f, 9, -5));		
+		world.addBody(bB);
+		
+		world.addJoint(new DistanceJoint(bA, bB, new Vector3(.5f, -.5f, 0), new Vector3(.05f, .5f, 0), 1.f, .9f));
+		
+		for (int i=0; i<50; i++) {
+			// add random bodies
+			float rn = MathHelper.randomRanged(1, 15);
+			
+			Shape s = rn > 10 ? cone : rn > 5 ? cylinder : box1;
+			
+			bB = new RigidBody(10.0f, s);
+			bB.setFriction(MathHelper.randomRanged(.1f, .8f));
+			bB.setRestitution(MathHelper.randomRanged(.2f, .9f));
+			bB.setPos(new Vector3(MathHelper.randomRanged(-4, 4), MathHelper.randomRanged(8, 15), MathHelper.randomRanged(-4, 4)));
+			
+			world.addBody(bB);
+		}
+		
+		float yPos = -.7f;
 		for (int i=0; i<7; i++) {
-			RigidBody rb = new RigidBody(150, box);
-			rb.setPos(new Vector3(MathHelper.randomRanged(-0.01f, 0.01f), y, MathHelper.randomRanged(-0.01f, 0.01f)));
-			y+= 1.05f;
-			rb.setFriction(0.2f);
-			world.addBody(rb);
+			// drop stack
+			bB = new RigidBody(50.0f, box2);
+			bB.setRestitution(0);
+			bB.setFriction(.2f);
+			bB.setPos(new Vector3(MathHelper.randomRanged(-.01f, .01f), yPos, MathHelper.randomRanged(-.01f, .01f)));
 			
-//			if (i == 2)
-//				bodyA = rb;
+			world.addBody(bB);
 			
-//			if (i==6)
-//				bodyB = rb;
+			yPos += 1.0f;
 		}
 		
-		for (int i=0; i<55; i++) {
-			int rNumber = (int)MathHelper.randomRanged(0, 15);
-			
-			// add random cone
-			Shape s = rNumber <= 5 ? boxShape : rNumber <=10 ? coneShape : cylinderShape;
-			RigidBody rb = new RigidBody(MathHelper.randomRanged(5, 20), s);
-			rb.setPos(new Vector3(MathHelper.randomRanged(-3, 3), 5 + MathHelper.randomRanged(-3, 8), MathHelper.randomRanged(-3, 3)));
-			rb.setFriction(0.41f);
-			rb.setRestitution(MathHelper.randomRanged(0.2f, 1.0f));
-			world.addBody(rb);
-			
-			if (i == 30)
-				bodyA = rb;
-		}
 	}
 	
 	public void run() {
@@ -355,28 +293,28 @@ public class AppMain {
 		anim.setRunAsFastAsPossible(true);
 		anim.start();
 		
-		// now we spawn our physics tread
-		phys = new Thread(new Runnable() {
-			
-			@Override
-			public void run() {
-				long lastTick = System.nanoTime();
-				long curTick;
-				while (anim.isAnimating()) {
-					curTick = System.nanoTime();
-					dt += (curTick - lastTick) / 1000000000.f;
-					lastTick = curTick;
-					
-					while (dt >= simDT) {
-						dt -= simDT;
-						
-						AppMain.this.update(simDT);
-					
-					}
-				}
-			}
-		});
-		phys.start();
+//		// now we spawn our physics tread
+//		phys = new Thread(new Runnable() {
+//			
+//			@Override
+//			public void run() {
+//				long lastTick = System.nanoTime();
+//				long curTick;
+//				while (anim.isAnimating()) {
+//					curTick = System.nanoTime();
+//					dt += (curTick - lastTick) / 1000000000.f;
+//					lastTick = curTick;
+//					
+//					while (dt >= simDT) {
+//						dt -= simDT;
+//						
+//						AppMain.this.update(simDT);
+//					
+//					}
+//				}
+//			}
+//		});
+//		phys.start();
 	}
 	
 	public void render(GL2 gl, float dt) {
@@ -389,7 +327,8 @@ public class AppMain {
 		// start rendering
 		gl.glClear(GL2.GL_COLOR_BUFFER_BIT|GL2.GL_DEPTH_BUFFER_BIT);
 		
-		Matrix4.ortho(-dist * 2, dist * 2, -dist * 2, dist * 2, 0.001f, 100.0f, matPers);
+//		Matrix4.ortho(-dist * 2, dist * 2, -dist * 2, dist * 2, 0.001f, 100.0f, matPers);
+		
 		gl.glMatrixMode(GL2.GL_PROJECTION);
 		gl.glLoadMatrixf(matPers.m, 0);
 		
@@ -399,43 +338,15 @@ public class AppMain {
 		GLU glu = GLUgl2.createGLU(gl);
 		glu.gluLookAt(camX, camY, camZ, 0, 0, 0, 0, 1, 0);
 		
-//		synchronized (world) {
-//			world.debugDraw(gl, drawContacts, drawContactN, drawContactT, drawBBox);
-//		}
+		synchronized(world) {
+			world.debugDraw(gl, drawContacts, drawContactN, drawContactT, drawBBox, dt);
+		}
+		
 		
 //		synchronized (ws) {
 //			ws.render(gl);
 //		}
 		
-		synchronized (res) {
-			gl.glColor3f(1, 0, 0);
-			res.sA.render(gl, res.posA, res.rotA);
-			
-			gl.glColor3f(0, 1, 0);
-			res.sB.render(gl, res.posB, res.rotB);
-			
-			gl.glColor3f(.25f, .5f, .8f);
-			res.simp.debugDraw(gl);
-			
-			// draw two lines
-//			if (res.simp.converged) {
-//				Vector3 oA = res.cA;
-//				Vector3 oB = res.cB;
-//				
-//				gl.glBegin(GL2.GL_POINTS);
-//					gl.glColor3f(1, 0, 1);
-//					gl.glVertex3f(oA.x, oA.y, oA.z);
-//					gl.glVertex3f(oB.x, oB.y, oB.z);
-//				gl.glEnd();
-//				
-//				gl.glBegin(GL2.GL_LINES);
-//				gl.glColor3f(1, 0, 1);
-//				gl.glVertex3f(oA.x, oA.y, oA.z);
-//				gl.glVertex3f(oB.x, oB.y, oB.z);
-//				gl.glEnd();
-//			}
-			
-		}
 		
 		
 		// draw origin and sheit
@@ -460,71 +371,14 @@ public class AppMain {
 		
 	}
 	
-	public void keyDown(short keyCode) {
-		
-		Vector3 wpPos = wp.getWorldPinPos();
-		
+	public void keyDown(short keyCode) {	
 		
 		switch (keyCode) {
 		case KeyEvent.VK_ESCAPE:
 			glWindow.destroy();
 			break;
 			
-		case KeyEvent.VK_W:
-			synchronized (res) {
-				Quaternion rot = Quaternion.makeAxisRot(new Vector3(1,0,0), (float) Math.toRadians(-10));
-				
-				Quaternion.mul(rot, res.rotA, res.rotA);
-				// redo collision detection
-				res.simp.reset();
-			}
-			break;
-		case KeyEvent.VK_S:
-			synchronized (res) {
-				Quaternion rot = Quaternion.makeAxisRot(new Vector3(1,0,0), (float) Math.toRadians(10));
-				
-				Quaternion.mul(rot, res.rotA, res.rotA);
-				// redo collision detection
-				res.simp.reset();
-			}
-			break;
-		case KeyEvent.VK_A:
-			synchronized (res) {
-				Quaternion rot = Quaternion.makeAxisRot(new Vector3(0,1,0), (float) Math.toRadians(10));
-				
-				Quaternion.mul(rot, res.rotA, res.rotA);
-				// redo collision detection
-				res.simp.reset();
-			}
-			break;
-		case KeyEvent.VK_D:
-			synchronized (res) {
-				Quaternion rot = Quaternion.makeAxisRot(new Vector3(0,1,0), (float) Math.toRadians(-10));
-				
-				Quaternion.mul(rot, res.rotA, res.rotA);
-				// redo collision detection
-				res.simp.reset();
-			}
-			break;
-		case KeyEvent.VK_Q:
-			synchronized (res) {
-				Quaternion rot = Quaternion.makeAxisRot(new Vector3(0,0,1), (float) Math.toRadians(10));
-				
-				Quaternion.mul(rot, res.rotA, res.rotA);
-				// redo collision detection
-				res.simp.reset();
-			}
-			break;
-
-		case KeyEvent.VK_E:
-			synchronized (res) {
-				Quaternion rot = Quaternion.makeAxisRot(new Vector3(0,0,1), (float) Math.toRadians(-10));
-				
-				Quaternion.mul(rot, res.rotA, res.rotA);
-				// redo collision detection
-				res.simp.reset();
-			}
-			break;
+		
 			
 		case KeyEvent.VK_B:
 			drawBBox = !drawBBox;
@@ -539,43 +393,7 @@ public class AppMain {
 			drawContactT = !drawContactT;
 			break;
 			
-		case KeyEvent.VK_UP:
-			synchronized (res) {
-				res.posA.z -= .1f;
-				res.simp.reset();
-			}
-			break;
-		case KeyEvent.VK_DOWN:
-			synchronized (res) {
-				res.posA.z += .1f;
-				res.simp.reset();
-			}
-			break;
-		case KeyEvent.VK_LEFT:
-			synchronized (res) {
-				res.posA.x -= .1f;
-				res.simp.reset();
-			}
-			break;
-		case KeyEvent.VK_RIGHT:
-			synchronized (res) {
-				res.posA.x += .1f;
-				res.simp.reset();
-			}
-			break;	
-//		case KeyEvent.VK_UP:
-//			wpPos.z -= 0.1f;
-//			break;
-//		case KeyEvent.VK_DOWN:
-//			wpPos.z += 0.1f;
-//			break;
-//		case KeyEvent.VK_LEFT:
-//			wpPos.x -= 0.1f;
-//			break;
-//		case KeyEvent.VK_RIGHT:
-//			wpPos.x += 0.1f;
-//			break;
-			
+		
 		case KeyEvent.VK_3:
 		case KeyEvent.VK_4:
 		case KeyEvent.VK_5:
@@ -588,6 +406,7 @@ public class AppMain {
 			
 		case KeyEvent.VK_R:
 			synchronized (world) {
+				
 				init();
 			}
 			break;
@@ -596,9 +415,7 @@ public class AppMain {
 //			synchronized (ws) {
 //				ws.setActive(!ws.isActive());
 //			}
-			synchronized (res) {
-				res.simp.advance();
-			}
+			
 			break;
 		}		
 		
@@ -622,40 +439,42 @@ public class AppMain {
 	
 	public void update(float dt) {
 		
+		long timeStep = System.nanoTime();
 		
+		synchronized (world) {
+			world.step(dt);
+		}			
 		
-//		synchronized (world) {
-//			long timeStep = System.nanoTime();
-//			world.step(dt);	
-//			
-//			double ovl = (double)(System.nanoTime() - timeStep)/1000000;
-//			
-//			profilerTrigger += dt;
-//			
-//			// if one second has passed, update information
-//			if (profilerTrigger >= 2.0f) {
-//				profilerTrigger = 0;
-//				String profTxt = "upd(%.2f)ref(%.2f)bphase(%.2f)nphase(%.2f)sort(%.2f)pre(%.2f)solver(%.2f)psolver(%.2f)intg(%.2f)|ovl(%.2f)%n";
-//				
-//				System.out.printf(profTxt, world.getPerformanceTimer(Physics.TIME_UPDATE_VEL), 
-//						world.getPerformanceTimer(Physics.TIME_REFRESH_CONTACT),
-//						world.getPerformanceTimer(Physics.TIME_BROAD_PHASE),
-//						world.getPerformanceTimer(Physics.TIME_NARROW_PHASE),
-//						world.getPerformanceTimer(Physics.TIME_SORT_CONTACT),
-//						world.getPerformanceTimer(Physics.TIME_PRE_STEP),
-//						world.getPerformanceTimer(Physics.TIME_SOLVER),
-//						world.getPerformanceTimer(Physics.TIME_POSITION_SOLVER),
-//						world.getPerformanceTimer(Physics.TIME_INTEGRATE),
-//						ovl);
-//				
-//				String count = 	"body(" + world.getBodyCount() + ")" +
-//								"joint(" + world.getJointCount() + ")" +
-//								"force(" + world.getForceCount() + ")" +
-//								"pair(" + world.getPairCount() +")" +
-//								"manifold(" + world.getManifoldCount()+")";
-//				System.out.println(count);
-//			}
-//		}
+		double ovl = (double)(System.nanoTime() - timeStep)/1000000;
+		
+		profilerTrigger += dt;
+		
+		// if one second has passed, update information
+		if (profilerTrigger >= 2.0f) {
+			profilerTrigger = 0;
+			String profTxt = "upd(%.2f)ref(%.2f)bphase(%.2f)nphase(%.2f)sort(%.2f)pre(%.2f)solver(%.2f)psolver(%.2f)intg(%.2f)|ovl(%.2f)%n";
+			
+			System.out.printf(profTxt, world.getPerformanceTimer(Physics.TIME_UPDATE_VEL), 
+					world.getPerformanceTimer(Physics.TIME_REFRESH_CONTACT),
+					world.getPerformanceTimer(Physics.TIME_BROAD_PHASE),
+					world.getPerformanceTimer(Physics.TIME_NARROW_PHASE),
+					world.getPerformanceTimer(Physics.TIME_SORT_CONTACT),
+					world.getPerformanceTimer(Physics.TIME_PRE_STEP),
+					world.getPerformanceTimer(Physics.TIME_SOLVER),
+					world.getPerformanceTimer(Physics.TIME_POSITION_SOLVER),
+					world.getPerformanceTimer(Physics.TIME_INTEGRATE),
+					ovl);
+			
+			String count = 	"body(" + world.getBodyCount() + ")" +
+							"joint(" + world.getJointCount() + ")" +
+							"force(" + world.getForceCount() + ")" +
+							"pair(" + world.getPairCount() +")" +
+							"manifold(" + world.getManifoldCount()+")";
+			System.out.println(count);
+			
+//			System.out.printf("GJK: %d,  EPA: %d%n", CoreShapesContactGenerator.gjkCount, CoreShapesContactGenerator.epaCount);
+		}
+		
 		
 	}
 	
@@ -666,6 +485,8 @@ public class AppMain {
 	 */
 	
 	private class GLHandler implements GLEventListener {
+		float tickDT = 0;
+		long curTick, lastTick = System.nanoTime();
 		@Override
 		public void init(GLAutoDrawable drawable) {
 			GL2 gl = drawable.getGL().getGL2();
@@ -688,23 +509,19 @@ public class AppMain {
 		@Override
 		public void display(GLAutoDrawable drawable) {
 //			System.out.println("Render fire!!");
-			// generate delta time
-//			curTick = System.nanoTime();
-//			tickDT += (curTick - lastTick) / 1000000000.0f;
-//			lastTick = curTick;
-//			
-//			while (tickDT >= AppMain.this.simDT) {
-//				tickDT -= AppMain.this.simDT;
-//				AppMain.this.update(AppMain.this.simDT);
-//			}
 			
-			try {
-				AppMain.this.render(drawable.getGL().getGL2(), dt);
-			} catch (ConcurrentModificationException e) {
-				System.out.println("Fucking shit. Dunno why");
+			// generate delta time
+			curTick = System.nanoTime();
+			tickDT += (curTick - lastTick) / 1000000000.0f;
+			lastTick = curTick;
+			
+			while (tickDT >= AppMain.this.simDT) {
+				tickDT -= AppMain.this.simDT;
+				AppMain.this.update(AppMain.this.simDT);
 			}
 			
-			
+			// render the rest of time
+			AppMain.this.render(drawable.getGL().getGL2(), tickDT);
 			
 			
 //			System.out.println("render: " + Thread.currentThread().getName());
@@ -717,7 +534,7 @@ public class AppMain {
 			gl.glViewport(x, y, width, height);
 			
 			// reset perspective
-//			Matrix4.perspective(fov, (float)width/height, 0.1f, 100.0f, matPers);
+			Matrix4.perspective(fov, (float)width/height, 0.1f, 100.0f, matPers);
 //			Matrix4.ortho(-10, 10, -10, 10, 0.1f, 100.0f, matPers);
 //			gl.glMatrixMode(GL2.GL_PROJECTION);
 //			gl.glLoadMatrixf(matPers.m, 0);

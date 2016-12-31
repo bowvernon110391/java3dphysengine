@@ -312,4 +312,14 @@ public class Box extends Shape {
 		
 		oldbbox.move(worldPos);
 	}
+
+	@Override
+	public Shape getDeflated(float margin) {
+		return new Box(width-margin * 2, height-margin * 2, depth-margin * 2);
+	}
+	
+	@Override
+	public int getShapeID() {
+		return Shape.SHAPE_BOX;
+	}
 }

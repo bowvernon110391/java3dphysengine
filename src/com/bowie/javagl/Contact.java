@@ -3,8 +3,8 @@ package com.bowie.javagl;
 import com.jogamp.opengl.GL2;
 
 public class Contact {
-	public static float MIN_RESTITUTION = 0.02f;		// minimum velocity to bounce off (0.02 m/s)
-	public static float RESTITUTION_DISSIPATE = 0.001f;	// .1% dissipated every solver iteration
+	public static float MIN_RESTITUTION = 0.03f;		// minimum velocity to bounce off (0.03 m/s)
+	public static float RESTITUTION_DISSIPATE = 0.01f;	// .1% dissipated every solver iteration
 	
 	public Vector3 localA, localB;	// contact point in local space
 	public Vector3 worldA, worldB;	// contact point in world space
@@ -445,7 +445,7 @@ public class Contact {
 		float pN = (-Vector3.dot(vAB, normal) + restitution) * massN;
 		
 		// smoothen out restitution
-//		restitution *= (1.0f-RESTITUTION_DISSIPATE);
+		restitution *= (1.0f-RESTITUTION_DISSIPATE);
 		
 		float dPN = accumPN;
 		accumPN = Math.max(dPN + pN, 0);

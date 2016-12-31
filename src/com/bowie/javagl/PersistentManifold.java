@@ -15,7 +15,7 @@ import com.jogamp.opengl.GL2;
 public class PersistentManifold {
 	static public int MAX_CONTACT_SIZE = 4;
 	static public float DIST_TOLERANCE = 0.2f;
-	static public float DEPTH_TOLERANCE = 0.002f;
+	static public float DEPTH_TOLERANCE = 0.001f;
 	
 	public List<Contact> contacts;
 	public RigidBody bodyA, bodyB;
@@ -184,6 +184,7 @@ public class PersistentManifold {
 		// do not bother
 		if (contacts.size() <= MAX_CONTACT_SIZE)
 			return;
+		
 		// holds our most interesting shit
 		Contact a = null,b=null,c=null,d=null;
 		
@@ -198,6 +199,9 @@ public class PersistentManifold {
 		if (a != null)
 			contacts.remove(a);
 		
+		// if a is null, no further action possible (that means, all contacts are positive)
+		if (a == null)
+			return;
 		// ha! got em.
 		// 2. keep the furthest from 1
 		float furthest = 0;

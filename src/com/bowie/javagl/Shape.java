@@ -3,10 +3,14 @@ package com.bowie.javagl;
 import com.jogamp.opengl.GL2;
 
 public abstract class Shape {
+	public static final int SHAPE_CONVEX = 0;
+	public static final int SHAPE_BOX = 1;
+	public static final int SHAPE_CORE = 2;
+	
 	protected int id = 0;
 	
 	abstract public void render(GL2 gl);
-	
+	abstract public int getShapeID();
 	abstract public void render(GL2 gl, Vector3 pos, Quaternion ori);
 	/**
 	 * supportPoint
@@ -22,6 +26,8 @@ public abstract class Shape {
 	}
 	
 	abstract public void getAABB(Vector3 worldPos, Quaternion worldOri, AABB oldbbox);
+	
+	abstract public Shape getDeflated(float margin);
 	
 	/**
 	 * getInvInertiaTensor - calculate the inverse inertia

@@ -19,6 +19,15 @@ public class Polygon {
 		// do nothing
 	}
 	
+	public Polygon(Polygon pol) {
+		// copy
+		n.setTo(pol.n);
+		
+		for (Vector3 v : pol.p) {
+			p.add(new Vector3(v));
+		}
+	}
+	
 	public Polygon(Vector3 [] pts) {
 		// initialize from set of points
 		p.clear();
@@ -39,6 +48,14 @@ public class Polygon {
 	
 	public void addPoint(Vector3 pt) {
 		p.add(new Vector3(pt));
+	}
+	
+	public void pushInward(float m) {
+		for (Vector3 v : p) {
+			v.x -= n.x * m;
+			v.y -= n.y * m;
+			v.z -= n.z * m;
+		}
 	}
 	
 	public void setNormal(Vector3 normal) {

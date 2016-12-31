@@ -8,10 +8,42 @@ public class Convex extends Shape {
 	
 	private List<Vector3> points;
 	private List<Polygon> faces;
+	private List<List<Integer>> face_ids;
+	
+	public Convex(Convex master, List<Vector3> newPts) {
+		// this thing only copies master data
+		points = new ArrayList<>(newPts);
+		faces = new ArrayList<>();
+		face_ids = new ArrayList<>();
+		
+		// copy face
+		for (int i=0; i<master.getFaces().size(); i++) {
+			faces.add(new Polygon(master.getFaces().get(i)));
+		}
+		
+		// copy face index
+		for (int i=0; i<master.face_ids.size(); i++) {
+			face_ids.add(new ArrayList<Integer>());
+			
+			for (int j=0; j<master.face_ids.get(i).size(); j++) {
+				face_ids.get(i).add(master.face_ids.get(i).get(j));
+			}
+		}
+		
+		// refine face data
+		for (int i=0; i<faces.size(); i++) {
+			Polygon p = faces.get(i);
+			// now loop over all vertices
+			for (int j=0; j<p.p.size(); j++) {
+				p.p.get(j).setTo(points.get(face_ids.get(i).get(j)));
+			}
+		}
+	}
 	
 	public Convex(Vector3[] pts, int[][] face_idx) {
 		points = new ArrayList<>();
 		faces = new ArrayList<>();
+		face_ids = new ArrayList<>();
 		
 		// add vertices
 		for (int i=0; i<pts.length; i++) {
@@ -20,10 +52,16 @@ public class Convex extends Shape {
 		
 		// create faces
 		for (int i=0; i<face_idx.length; i++) {
+			// gotta copy face_ids
+			face_ids.add(new ArrayList<Integer>());
+			
 			// this is it
 			Polygon p = new Polygon();
 			for (int j=0; j<face_idx[i].length; j++) {
 				p.addPoint(points.get(face_idx[i][j]));
+				
+				// add face vertex id
+				face_ids.get(i).add(face_idx[i][j]);
 			}
 			p.calcNormal();
 			faces.add(p);
@@ -195,4 +233,49 @@ public class Convex extends Shape {
 		return ;
 	}
 
+	public List<Vector3> getPoints() {
+		return points;
+	}
+
+	public List<Polygon> getFaces() {
+		return faces;
+	}
+	
+	public void setFaces(List<Polygon> f) {
+		// WAAIIITTT!!!
+		// We'd better copy vertex data only
+		// because we must already have index and polygonal data
+		// just change vertex data, and reset polygon data
+		
+		for (Polygon origFace : faces) {
+			for (Polygon pol : f) {
+				// check if the normal is close
+				float diff = 1.0f - Vector3.dot(origFace.n, pol.n);
+				
+				if (Math.abs(diff) < Vector3.EPSILON && origFace.p.size() == pol.p.size()) {
+					Vector3 n1 = origFace.n;
+					Vector3 n2 = pol.n;
+					System.out.printf("potential match: [%.2f %.2f %.2f] -> [%.2f %.2f %.2f] : %d -> %d%n", n1.x, n1.y, n1.z, n2.x,
+							n2.y, n2.z, origFace.p.size(), pol.p.size());
+				}
+			}
+		}
+		
+		// for rendering purpose
+		faces = f;
+	}
+
+	public List<List<Integer>> getFace_ids() {
+		return face_ids;
+	}
+
+	@Override
+	public Shape getDeflated(float margin) {
+		return MathHelper.getDeflatedConvex(this, margin);
+	}
+	
+	@Override
+	public int getShapeID() {
+		return Shape.SHAPE_CONVEX;
+	}
 }

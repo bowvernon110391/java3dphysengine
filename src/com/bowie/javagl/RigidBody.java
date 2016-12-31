@@ -61,6 +61,52 @@ public class RigidBody {
 		shape.render(gl, pos, rot);
 	}
 	
+	public void debugDraw(GL2 gl, float dt) {
+		
+		
+		if (dt < Vector3.EPSILON) {
+			shape.render(gl, pos, rot);
+		} else {
+			Vector3 p = Vector3.tmp0;
+			Quaternion r = Quaternion.tmp0;
+			Quaternion spin = Quaternion.tmp1;
+			
+			spin.x = angVel.x;
+			spin.y = angVel.y;
+			spin.z = angVel.z;
+			spin.w = 0;
+			
+			spin.scale(.5f);
+			Quaternion.mul(spin, rot, spin);
+			
+			r.x = rot.x + spin.x * dt;
+			r.y = rot.y + spin.y * dt;
+			r.z = rot.z + spin.z * dt;
+			r.w = rot.w + spin.w * dt;
+			
+			r.normalize();
+			
+//			// angular is quite hard
+//			// 1. calculate spin
+//			Quaternion scaledAngvel = new Quaternion(angVel.x+angBias.x, angVel.y+angBias.y, angVel.z+angBias.z, 0);
+//			scaledAngvel.scale(0.5f);
+//			Quaternion.mul(scaledAngvel, rot, scaledAngvel);
+//			// 2. scale to timestep
+//			scaledAngvel.scale(dt);
+//			// 3. add to rotation
+//			Quaternion.add(rot, scaledAngvel, rot);
+//			rot.normalize();
+			
+			// compute interpolated properties
+			p.x	= pos.x + vel.x * dt;
+			p.y	= pos.y + vel.y * dt;
+			p.z	= pos.z + vel.z * dt;
+			
+			shape.render(gl, p, r);
+		}
+		
+	}
+	
 	public Matrix3 getInvInertia() {
 		return invInertia;
 	}

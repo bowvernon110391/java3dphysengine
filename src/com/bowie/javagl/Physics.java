@@ -32,6 +32,14 @@ public class Physics {
 	
 	private Vector3 gravity = new Vector3(0, -10, 0);
 	
+	// support 4 x 4 contact generator
+	private ContactGenerator [][] contactGens = new ContactGenerator[][]{
+			{null, null, null, null},
+			{null, null, null, null},
+			{null, null, null, null},
+			{null, null, null, null}
+	};
+	
 	// list of rigid bodies
 	private List<RigidBody> bodies = new ArrayList<>();
 	
@@ -61,6 +69,22 @@ public class Physics {
 		
 		// initialize profiler
 		perfTime = new double[10];
+	}
+	
+	public void reset() {
+		bodies.clear();
+		manifolds.clear();
+		forces.clear();
+		joints.clear();
+		sortedManifolds.clear();
+	}
+	
+	public void registerContactGenerator(int sIdA, int sIdB, ContactGenerator cg) {
+		if (sIdA >= 4 || sIdB >= 4 || sIdA < 0 || sIdB < 0)
+			return;
+		// it's valid
+		contactGens[sIdA][sIdB] = cg;
+		contactGens[sIdB][sIdA] = cg;
 	}
 
 	public void addBody(RigidBody b) {
@@ -127,6 +151,8 @@ public class Physics {
 				// remove from both list/map!!
 				sortedManifolds.remove(pair.getValue());
 				iter.remove();
+				
+//				System.out.println("removing old pair!!");
 			} else {
 				// refresh here!!
 				PersistentManifold m = (PersistentManifold) pair.getValue();
@@ -250,13 +276,13 @@ public class Physics {
 		return perfTime[id];
 	}
 	
-	public void debugDraw(GL2 gl, boolean drawContacts, boolean drawContactN, boolean drawContactT, boolean drawBBox) {
+	public void debugDraw(GL2 gl, boolean drawContacts, boolean drawContactN, boolean drawContactT, boolean drawBBox, float dt) {
 		// draw all rigid bodies, using colors from
 		for (RigidBody b : bodies) {
 			float [] color = Polytope.getColor(b.getId());
 			
 			gl.glColor3f(color[0], color[1], color[2]);
-			b.debugDraw(gl);
+			b.debugDraw(gl, dt);
 			
 			if (drawBBox) {
 				gl.glColor3f(0.2f, 0.0f, 0.8f);
@@ -327,11 +353,22 @@ public class Physics {
 				sortedManifolds.add(m);
 			}
 			
+			// grab contact generator
+			// loop over each shapes, though
+			ContactGenerator cg = contactGens[p.getBodyA().getShape().getShapeID()][p.getBodyB().getShape().getShapeID()];
 			
-			// now we attempt to generate contact point
-			Contact c = MathHelper.generateContactGJKEPA(p.getBodyA(), p.getBodyB());
-			if (c != null)
-				m.add(c);
+			if (cg != null) {
+				// execute contact generator
+				RigidBody bA = p.getBodyA();
+				RigidBody bB = p.getBodyB();
+				
+				cg.generateContact(m, bA.getShape(), bA.getPos(), bA.getRot(), bB.getShape(), bB.getPos(), bB.getRot(), bA, bB);
+			} else {
+				System.out.printf("Shape contact unhandled: %d, %d%n", p.getBodyA().getShape().getShapeID(), 
+						p.getBodyB().getShape().getShapeID());
+			}
+			
+			
 		} // for	
 	}
 	

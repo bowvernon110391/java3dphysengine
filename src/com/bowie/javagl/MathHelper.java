@@ -1,12 +1,15 @@
 package com.bowie.javagl;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
+
 import com.bowie.javagl.Polytope.EPATriangle;
 
 public class MathHelper {
 	static public int GJK_MAX_ITERATION = 32;
 	static public int EPA_MAX_ITERATION = 32;
-	static public float GJK_MARGIN_ERROR = 0.0001f;
+	static public float GJK_MARGIN_ERROR = 0.001f;
 	
 	static public Random rng = new Random(System.currentTimeMillis());
 	
@@ -22,6 +25,63 @@ public class MathHelper {
 
 		mu2 = (float) ((1 - Math.cos(mu * Math.PI)) / 2.0f);
 		return (a * (1 - mu2) + b * mu2);
+	}
+	
+	// will push the vertices into m- margin
+	public static Convex getDeflatedConvex(Convex s, float m) {
+		// first, we grab all faces, and push them inward
+		List<Polygon> faces = new ArrayList();
+		for (Polygon p : s.getFaces()) {
+			faces.add(new Polygon(p));
+		}
+		
+		// now we push them
+		for (Polygon p : faces) {
+//			p.pushInward(m);
+		}
+		
+		List<Polygon> clpFaces = new ArrayList<>();
+		
+		// we push all vertices, using brute forces.....
+		List<Vector3> pts = s.getPoints();
+		List<Vector3> newPts = new ArrayList<>();
+		
+		float multFactor = 1.0f / (float) Math.max(64, pts.size() * pts.size());
+//		System.out.println("mult factor: " +multFactor);
+		for (int p_id=0; p_id<pts.size(); p_id++) {
+			
+		
+			Vector3 tmpPt = new Vector3(pts.get(p_id));
+//			System.out.printf("o -> %.4f %.4f %4f%n", tmpPt.x, tmpPt.y, tmpPt.z);
+			int i=0;
+			float maxD = m * 2;
+			while (maxD+m > Vector3.EPSILON) {
+				int pol_id = 0;
+				for (Polygon pol : faces) {
+					// push back along face
+					Vector3 ap = new Vector3(tmpPt, pol.p.get(0));
+					float d= Vector3.dot(ap, pol.n);
+					
+					if (d > -m) {
+						float pushD = -m -d;
+						tmpPt.x += pol.n.x * pushD * multFactor;
+						tmpPt.y += pol.n.y * pushD * multFactor;
+						tmpPt.z += pol.n.z * pushD * multFactor;
+						
+//						System.out.printf("d[%d] = %f%n", pol_id, d);
+						maxD = Math.min(maxD, d);
+					}
+					
+					pol_id++;
+				}
+				
+			}
+//			System.out.printf("n -> %.4f %.4f %4f%n", tmpPt.x, tmpPt.y, tmpPt.z);
+			newPts.add(new Vector3(tmpPt));
+		}
+		
+		Convex ret = new Convex(s, newPts);
+		return ret;
 	}
 	
 	public static float randomRanged(float min, float max) {
@@ -174,16 +234,16 @@ public class MathHelper {
 		if (tArea > Vector3.EPSILON) {
 			candidate[3] = getClosestToTriangle(p, a, b, c);
 			canSize = 4;
-		} else {
+		} /*else {
 			System.out.println("naiveClosestTriangle: degenerate triangle!!" + tArea);
-		}
+		}*/
 		
 		
 		Vector3 ret = candidate[0];
-		float dist = ret.lengthSquared();
+		float dist = Vector3.distBetween(p, candidate[0]);
 		
 		for (int i=1; i<canSize; i++) {
-			float newDist = new Vector3(p, candidate[i]).lengthSquared();
+			float newDist = Vector3.distBetween(p, candidate[i]);
 			
 			if (newDist < dist) {
 				dist = newDist;
@@ -209,16 +269,16 @@ public class MathHelper {
 		if (tetraVol > Vector3.EPSILON) {
 			candidate[4] = getClosestToTetrahedron(p, a, b, c, d);
 			canSize = 5;
-		} else {
+		} /*else {
 			System.out.println("naiveClosestTetrahedron: degenerate tetrahedron!!" + tetraVol);
-		}
+		}*/
 		
 		
 		Vector3 ret = candidate[0];
-		float dist = ret.lengthSquared();
+		float dist = Vector3.distBetween(p, candidate[0]);
 		
 		for (int i=1; i<canSize; i++) {
-			float newDist = new Vector3(p, candidate[i]).lengthSquared();
+			float newDist = Vector3.distBetween(p, candidate[i]);
 			
 			if (newDist < dist) {
 				dist = newDist;
@@ -446,7 +506,7 @@ public class MathHelper {
 		
 		// if this is too small, we cannot do anything
 		if (Math.abs(volABCD) < Vector3.EPSILON)
-			return new Quaternion();
+			return new Quaternion(0,0,0,0);
 		
 		// compute volume ABC + P
 		Vector3.sub(p, a, v2);	// AP
@@ -545,100 +605,7 @@ public class MathHelper {
 //		return cp;
 //	}
 	
-	public static boolean gjkClosestPoint(Shape sA, Vector3 posA, Quaternion rotA, Shape sB, Vector3 posB, Quaternion rotB, Vector3 dir, Simplex simp) {
-		if (simp == null)
-			simp = new Simplex();
-		else
-			simp.reset();
-		
-		System.out.println("=============GJK CLOSEST START==================");
-		
-		// we add single support point first
-//		simp.addSupportConservatively(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
-		simp.addSupport(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
-		
-		// direction reversed
-		dir.scale(-1.0f);
-		
-		// last result
-		float closestDist = Float.MAX_VALUE;	// set to maximum. we will improve our distance
-		
-		int iter = 0;
-		
-		while (iter ++ < GJK_MAX_ITERATION) {
-			// potential to get stuck in infinite loop
-			System.out.println("============GJK ITER============ @ " + iter);
-			// add point to simplex
-			CSOVertex v = Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir);
-//			simp.addSupportConservatively(v);
-			simp.addSupport(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
-			
-			// grab closest point to track our distance so far
-			Vector3 closest = simp.closestToOrigin();
-			
-			System.out.println("gjk closest: closest= " + closest.x+", "+closest.y+", "+closest.z + " DEGENEREATE? " + simp.isDegenerate() + " : " + simp.size());
-			
-			if (simp.hasOrigin()) {
-				// welp, cannot be true
-				System.out.println("gjk closest: simplex has origin");
-				return false;
-			} else {
-				// well, let's see
-				float d = closest.lengthSquared();
-				
-				System.out.println("gjk closest: dist => " + d + ", " + closestDist+ " @ iter " + (iter));
-				
-				
-				// how close?
-				float diff = Math.abs(closestDist - d);
-				
-				if (diff < GJK_MARGIN_ERROR) {
-					System.out.println("============GJK END============= @ " + iter);
-					System.out.printf("gjk closest: terminate with separation distance -> %.6f %n", Math.abs(closestDist-d));
-					return true;
-				} else {
-					// the separation is too far... update distance instead
-					if (d < closestDist) {
-						closestDist = d;
-					} else if (d > closestDist) {
-						System.out.println("gjk closest: we cannot get better than this -> " + closestDist + " vs " + d);
-						
-						// well, bad vertex added....maybe remove it?
-						System.out.println("gjk closest: BAD VERTEX { " + v.p.x + ", "+v.p.y+","+v.p.z + "}");
-//						simp.removeVertex(v);
-						
-						
-//						return true;
-					}
-					
-				} 
-				// get new direction
-//				Vector3 normalDir = simp.calcNewDir();
-//				dir = closest.inverse();
-				
-				// check direction though				
-//				if (closest.lengthSquared() < Vector3.EPSILON) {
-//					System.out.println("gjk closest: UNSAFEEE dir --> " + closest.lengthSquared());
-//					dir = simp.calcNewDir();
-//				} else {
-//					System.out.println("gjk closest: safe dir");
-//					dir = closest.inverse();
-//				}
-				Vector3 bestDir = simp.calcNewDir();
-				
-				// default direction is the reverse of the closest vertex
-				dir = closest.inverse();
-				// need to go around if we got ourselves trapped
-				// in bad direction
-				if (d < Vector3.EPSILON) {
-					dir.setTo(bestDir);
-					
-					System.out.println("gjk closest: DIRECTION INVALID --> " + closest.x + ", " + closest.y + ", " + closest.z);
-				}
-			}
-		}
-		return false;
-	}
+
 	
 //	public static boolean gjkClosestPoint(Shape sA, Vector3 posA, Quaternion rotA, Shape sB, Vector3 posB, Quaternion rotB, Vector3 dir, Simplex simp) {
 //		if (simp == null)
@@ -757,11 +724,13 @@ public class MathHelper {
 			simp.addSupport(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
 			
 			// means we won't get better
-			if (Vector3.dot(simp.getLast().p, dir) < Vector3.EPSILON) {
+			if (Vector3.dot(simp.getLast().p, dir) <= Vector3.EPSILON) {
 				// early out. Would be better to keep track of last direction?
 				// wait. ensure we get triangle
 				return false;
 			} else {
+				
+				
 				// do we have origins?
 				if (simp.hasOrigin()) {
 					// stop here
