@@ -85,6 +85,12 @@ public class Simplex {
 		closestPointToOrigin = closestToOrigin();
 		float d = closestPointToOrigin.lengthSquared();
 		
+		// check if we have origin inside
+		if (hasOrigin()) {
+			System.out.println("SIMPLEX CONTAIN ORIGIN!! EXITING...");
+			return false;
+		}
+		
 		// check if we're close
 		if (Math.abs(closestDist - d) < MathHelper.GJK_MARGIN_ERROR) {
 			System.out.printf("SIMPLEX CONVERGED WITH SEP_DIST: %f%n", Math.abs(closestDist - d));
