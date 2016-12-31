@@ -42,7 +42,11 @@ public class Simplex {
 		this.rotA = rotA;
 		this.rotB = rotB;
 		
-		// make sure direction is valid
+		// set current direction to posA - posB
+		/*Vector3 pAB = new Vector3(posA, posB);
+		if (pAB.lengthSquared() > Vector3.EPSILON)
+			this.currentDir.setTo(pAB);
+		else*/ 
 		if (initDir.lengthSquared() > Vector3.EPSILON)
 			this.currentDir.setTo(initDir);
 		else
@@ -97,7 +101,7 @@ public class Simplex {
 			converged = true;
 			
 			// make sure our simplex isn't degenerate
-			ceaseDegeneracy();
+//			ceaseDegeneracy();
 			
 			// compute closest point
 			cA = new Vector3();
@@ -111,6 +115,7 @@ public class Simplex {
 		// Gotta warn too if distance is shit
 		if (d > closestDist) {
 			System.out.println("SIMPLEX WARNING!! RECENT DISTANCE IS FARTHER!!: " + d + " > " + closestDist);
+			return false;
 		} else {
 			System.out.printf("SIMPLEX MSG: updating closest distance from %.4f -> %.4f %n", closestDist, d);
 			// we're getting better, update
@@ -685,7 +690,7 @@ public class Simplex {
 				bB.y	= bary.x * a.b.y + bary.y * b.b.y + bary.z * c.b.y;
 				bB.z	= bary.x * a.b.z + bary.y * b.b.z + bary.z * c.b.z;
 			}*/
-			a = points.get(0);
+			/*a = points.get(0);
 			b = points.get(1);
 			c = points.get(2);
 			d = points.get(3);
@@ -712,8 +717,13 @@ public class Simplex {
 				bB.z = a.b.z * bary.x + b.b.z * bary.y + c.b.z * bary.z + d.b.z * bary.w;
 				
 				return true;
-			}
-			/*float volTetra = MathHelper.calcTetraVolume(a.p, b.p, c.p, d.p);
+			}*/
+			a = points.get(0);
+			b = points.get(1);
+			c = points.get(2);
+			d = points.get(3);
+			
+			float volTetra = MathHelper.calcTetraVolume(a.p, b.p, c.p, d.p);
 			
 			if (Math.abs(volTetra) < Vector3.EPSILON) {
 				System.out.println("SHEEIIIITTT DEGENERATE TETRAHEDRON!!!");				
@@ -795,7 +805,7 @@ public class Simplex {
 			bB.y	= tris[id][0].b.y * bary.x + tris[id][1].b.y * bary.y + tris[id][2].b.y * bary.z;
 			bB.z	= tris[id][0].b.z * bary.x + tris[id][1].b.z * bary.y + tris[id][2].b.z * bary.z;
 			
-			return true;*/
+			return true;
 			
 //			// must remove degenerate point
 //			List<CSOVertex> better = new ArrayList<>();	// we make new list, that is not degenerate
