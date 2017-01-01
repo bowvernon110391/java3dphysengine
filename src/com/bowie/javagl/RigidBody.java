@@ -36,7 +36,12 @@ public class RigidBody {
 	private Vector3 pos = new Vector3();		// position
 	private Quaternion rot = new Quaternion();		// rotation
 	
-	private boolean fixed = false;
+	private float sleepingThreshold = 0.001f;	// minimum energy to be able to sleep
+	
+	private boolean fixed = false;				// if fixed, we skip gravity
+	private boolean sleeping = false;			// if sleeping, do not update pos + vel + collide with each other
+	private boolean canSleep = true;			// by default, they can sleep
+	private int sleepTimer = 0;
 	
 	public RigidBody(float mass, Shape s) {
 		// Inertia and Mass calculation
@@ -55,6 +60,42 @@ public class RigidBody {
 		// update?
 		this.worldInvInertia = new Matrix3();
 		refreshWorldInvInertia();
+	}
+	
+	public float calcActivity() {
+		return vel.lengthSquared() + angVel.lengthSquared();
+	}
+	
+	public void advanceSleepTimer() {
+		sleepTimer++;
+	}
+	
+	public int getSleepTimer() {
+		return sleepTimer;
+	}
+	
+	public void resetSleepTimer() {
+		sleepTimer = 0;
+	}
+	
+	public void putToSleep() {
+		if (canSleep) {
+			sleeping = true;
+			vel.setTo(Vector3.ZERO);
+			angVel.setTo(Vector3.ZERO);
+			
+			linBias.setTo(Vector3.ZERO);
+			angBias.setTo(Vector3.ZERO);
+		}
+	}
+	
+	public boolean isSleeping() {
+		return sleeping;
+	}
+	
+	public void wakeUp() {
+		sleeping = false;
+		sleepTimer = 0;
 	}
 	
 	public void debugDraw(GL2 gl) {
@@ -461,5 +502,17 @@ public class RigidBody {
 
 	public int getId() {
 		return id;
+	}
+	public boolean isCanSleep() {
+		return canSleep;
+	}
+	public void setCanSleep(boolean canSleep) {
+		this.canSleep = canSleep;
+	}
+	public float getSleepingThreshold() {
+		return sleepingThreshold;
+	}
+	public void setSleepingThreshold(float sleepingThreshold) {
+		this.sleepingThreshold = sleepingThreshold;
 	}
 }

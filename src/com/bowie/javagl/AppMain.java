@@ -36,7 +36,8 @@ public class AppMain {
 	private float fov = 80.0f;
 	private Matrix4 matPers = new Matrix4();
 	
-	private Physics world = new Physics(7, 5, .04f, .5f);
+	private Physics world = new Physics(7, 5, .04f, .3f);
+	private Shape bomb = new Box(1,1,1);
 	private WorldSpring ws;
 	private WorldPinJoint wp;
 	
@@ -140,7 +141,7 @@ public class AppMain {
 		};
 		
 		world.setAngularDamping(.01f);
-		world.setLinearDamping(.002f);
+		world.setLinearDamping(.0085f);
 		
 		// add contact generator
 		ContactGenerator cg = new ConvexShapeContactGenerator();
@@ -184,7 +185,7 @@ public class AppMain {
 		
 		bA = new RigidBody(-1.0f, xbox);
 		bA.setFriction(.4f);
-		bA.setPos(new Vector3(-8.5f, 6.5f, 0));
+		bA.setPos(new Vector3(-8.f, 6.5f, 0));
 		bA.setFixed(true);
 		bA.setRestitution(.5f);
 		
@@ -192,7 +193,7 @@ public class AppMain {
 		
 		bA = new RigidBody(-1.0f, xbox);
 		bA.setFriction(.4f);
-		bA.setPos(new Vector3( 8.5f, 6.5f, 0));
+		bA.setPos(new Vector3( 8.f, 6.5f, 0));
 		bA.setFixed(true);
 		bA.setRestitution(.5f);
 		
@@ -200,7 +201,7 @@ public class AppMain {
 		
 		bA = new RigidBody(-1.0f, zbox);
 		bA.setFriction(.4f);
-		bA.setPos(new Vector3(0, 6.5f, 8.5f));
+		bA.setPos(new Vector3(0, 6.5f, 8.f));
 		bA.setFixed(true);
 		bA.setRestitution(.5f);
 		
@@ -208,7 +209,7 @@ public class AppMain {
 		
 		bA = new RigidBody(-1.0f, zbox);
 		bA.setFriction(.4f);
-		bA.setPos(new Vector3(0, 6.5f, -8.5f));
+		bA.setPos(new Vector3(0, 6.5f, -8.f));
 		bA.setFixed(true);
 		bA.setRestitution(.5f);
 		
@@ -245,7 +246,7 @@ public class AppMain {
 			
 			bB = new RigidBody(10.0f, s);
 			bB.setFriction(MathHelper.randomRanged(.1f, .8f));
-			bB.setRestitution(MathHelper.randomRanged(.2f, .9f));
+			bB.setRestitution(MathHelper.randomRanged(.2f, .8f));
 			bB.setPos(new Vector3(MathHelper.randomRanged(-4, 4), MathHelper.randomRanged(8, 15), MathHelper.randomRanged(-4, 4)));
 			
 			world.addBody(bB);
@@ -294,27 +295,27 @@ public class AppMain {
 		anim.start();
 		
 //		// now we spawn our physics tread
-//		phys = new Thread(new Runnable() {
-//			
-//			@Override
-//			public void run() {
-//				long lastTick = System.nanoTime();
-//				long curTick;
-//				while (anim.isAnimating()) {
-//					curTick = System.nanoTime();
-//					dt += (curTick - lastTick) / 1000000000.f;
-//					lastTick = curTick;
-//					
-//					while (dt >= simDT) {
-//						dt -= simDT;
-//						
-//						AppMain.this.update(simDT);
-//					
-//					}
-//				}
-//			}
-//		});
-//		phys.start();
+		phys = new Thread(new Runnable() {
+			
+			@Override
+			public void run() {
+				long lastTick = System.nanoTime();
+				long curTick;
+				while (anim.isAnimating()) {
+					curTick = System.nanoTime();
+					dt += (curTick - lastTick) / 1000000000.f;
+					lastTick = curTick;
+					
+					while (dt >= simDT) {
+						dt -= simDT;
+						
+						AppMain.this.update(simDT);
+					
+					}
+				}
+			}
+		});
+		phys.start();
 	}
 	
 	public void render(GL2 gl, float dt) {
@@ -415,6 +416,16 @@ public class AppMain {
 //			synchronized (ws) {
 //				ws.setActive(!ws.isActive());
 //			}
+			synchronized (world) {
+				// 1T bomb
+				RigidBody b = new RigidBody(1000, bomb);
+				b.setRestitution(.42f);
+				b.setFriction(.14f);
+				
+				b.setPos(new Vector3(MathHelper.randomRanged(-6,  6), MathHelper.randomRanged(5,  15), MathHelper.randomRanged(-6, 6)));
+				b.setVel(new Vector3(MathHelper.randomRanged(-12, 12), MathHelper.randomRanged(-11, -15), MathHelper.randomRanged(-12, 12)));
+				world.addBody(b);
+			}
 			
 			break;
 		}		
@@ -510,18 +521,18 @@ public class AppMain {
 		public void display(GLAutoDrawable drawable) {
 //			System.out.println("Render fire!!");
 			
-			// generate delta time
-			curTick = System.nanoTime();
-			tickDT += (curTick - lastTick) / 1000000000.0f;
-			lastTick = curTick;
-			
-			while (tickDT >= AppMain.this.simDT) {
-				tickDT -= AppMain.this.simDT;
-				AppMain.this.update(AppMain.this.simDT);
-			}
+//			// generate delta time
+//			curTick = System.nanoTime();
+//			tickDT += (curTick - lastTick) / 1000000000.0f;
+//			lastTick = curTick;
+//			
+//			while (tickDT >= AppMain.this.simDT) {
+//				tickDT -= AppMain.this.simDT;
+//				AppMain.this.update(AppMain.this.simDT);
+//			}
 			
 			// render the rest of time
-			AppMain.this.render(drawable.getGL().getGL2(), tickDT);
+			AppMain.this.render(drawable.getGL().getGL2(), AppMain.this.dt);
 			
 			
 //			System.out.println("render: " + Thread.currentThread().getName());

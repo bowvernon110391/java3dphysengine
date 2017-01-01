@@ -15,7 +15,7 @@ import com.jogamp.opengl.GL2;
 public class PersistentManifold {
 	static public int MAX_CONTACT_SIZE = 4;
 	static public float DIST_TOLERANCE = 0.2f;
-	static public float DEPTH_TOLERANCE = 0.001f;
+	static public float DEPTH_TOLERANCE = 0.002f;
 	
 	public List<Contact> contacts;
 	public RigidBody bodyA, bodyB;

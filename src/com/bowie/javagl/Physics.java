@@ -154,6 +154,9 @@ public class Physics {
 				
 //				System.out.println("removing old pair!!");
 			} else {
+				// between sleeping bodies need not be refrehsed
+				if (k.getBodyA().isSleeping() && k.getBodyB().isSleeping())
+					continue;
 				// refresh here!!
 				PersistentManifold m = (PersistentManifold) pair.getValue();
 				m.refresh();
@@ -187,9 +190,35 @@ public class Physics {
 	public void updatePosition(float dt) {
 		// update position + apply damping
 		for (RigidBody b : bodies) {
+			// skip sleeping bodies
+			if (b.isSleeping()) {
+				// is it time to wake up?
+				if (b.calcActivity() > b.getSleepingThreshold()) {
+					b.wakeUp();
+//					System.out.println("waking up: " + b.calcActivity() + " : " + b.hashCode());
+				} else {
+					// nope, skip it. it's still eligible for sleeping
+					continue;
+				}
+			}
+			
 			b.updatePosition(dt);
 			b.applyLinearDamping(linearDamping);
 			b.applyAngularDamping(angularDamping);
+			
+			// calculate
+			if (b.calcActivity() < b.getSleepingThreshold()) {
+				if (b.getSleepTimer() > 50) {
+					b.putToSleep();
+//					System.out.println("body put to sleep: " + b.hashCode());
+//					System.out.println("sleeping: " + b.calcActivity() + " : " + b.hashCode());
+				} else {
+					b.advanceSleepTimer();
+				}
+			} else {
+				// it abruptly wakes
+				b.resetSleepTimer();
+			}
 		}
 	}
 	
@@ -281,7 +310,10 @@ public class Physics {
 		for (RigidBody b : bodies) {
 			float [] color = Polytope.getColor(b.getId());
 			
-			gl.glColor3f(color[0], color[1], color[2]);
+			if (!b.isSleeping())
+				gl.glColor3f(color[0], color[1], color[2]);
+			else
+				gl.glColor3f(.2f, .2f, .2f);
 			b.debugDraw(gl, dt);
 			
 			if (drawBBox) {
@@ -321,6 +353,10 @@ public class Physics {
 
 				RigidBody b2 = bodies.get(j);
 				
+				// skip sleeping bodies
+				if (b1.isSleeping() && b2.isSleeping())
+					continue;
+				
 				// skip fixed bodies
 				if (b1.isFixed() && b2.isFixed())
 					continue;
@@ -342,6 +378,8 @@ public class Physics {
 	public void narrowPhase(float dt) {
 		// for each entry, gotta find persistent cache
 		for (BodyPair p : potentialColliders) {				
+			if (p.getBodyA().isSleeping() && p.getBodyB().isSleeping())
+				continue;
 			
 			PersistentManifold m = manifolds.get(p);
 			// if we cannot find, then add new
@@ -383,6 +421,8 @@ public class Physics {
 //			int i = 0;
 //			System.out.println("===============PRE STEP===============");
 		for (PersistentManifold m : sortedManifolds) {
+//			if (m.bodyA.isSleeping() && m.bodyB.isSleeping())
+//				continue;
 			m.preStep(dt, slop, baumgarte);
 //				System.out.println(i + " : " + m.getHeight(10));
 //				i++;
@@ -440,6 +480,8 @@ public class Physics {
 		for (int i=0; i<positionIteration; i++) {
 			
 			for (PersistentManifold m : sortedManifolds) {
+//				if (m.bodyA.isSleeping() && m.bodyB.isSleeping())
+//					continue;
 				m.positionSolve();
 			}
 		

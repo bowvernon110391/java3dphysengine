@@ -4,7 +4,7 @@ import com.jogamp.opengl.GL2;
 
 public class Contact {
 	public static float MIN_RESTITUTION = 0.03f;		// minimum velocity to bounce off (0.03 m/s)
-	public static float RESTITUTION_DISSIPATE = 0.01f;	// .1% dissipated every solver iteration
+	public static float RESTITUTION_DISSIPATE = 0.02f;	// .1% dissipated every solver iteration
 	
 	public Vector3 localA, localB;	// contact point in local space
 	public Vector3 worldA, worldB;	// contact point in world space
@@ -439,7 +439,7 @@ public class Contact {
 	*/
 	public void applyImpulse() {
 		// first, normal impulse
-		Vector3 vAB = new Vector3();
+		Vector3 vAB = Vector3.tmp0;
 		Vector3.sub(bodyA.getVelWS(worldA), bodyB.getVelWS(worldB), vAB);
 		
 		float pN = (-Vector3.dot(vAB, normal) + restitution) * massN;
@@ -451,7 +451,8 @@ public class Contact {
 		accumPN = Math.max(dPN + pN, 0);
 		dPN = accumPN - dPN;
 		
-		Vector3 jN = new Vector3(normal);
+		Vector3 jN = Vector3.tmp1;
+		jN.setTo(normal);
 		jN.scale(dPN);
 		
 		bodyA.applyImpulse(jN, worldA);
@@ -469,7 +470,8 @@ public class Contact {
 		accumPT1 = MathHelper.clamp(accumPT1 + pT, -maxPT, maxPT);
 		dPT = accumPT1 - dPT;
 		
-		Vector3 jT = new Vector3(tangent1);
+		Vector3 jT = Vector3.tmp1;
+		jT.setTo(tangent1);
 		jT.scale(dPT);
 		
 		bodyA.applyImpulse(jT, worldA);
