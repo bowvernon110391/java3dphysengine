@@ -203,8 +203,8 @@ public class Physics {
 			}
 			
 			b.updatePosition(dt);
-			b.applyLinearDamping(linearDamping);
-			b.applyAngularDamping(angularDamping);
+			b.applyLinearDamping(linearDamping * dt);
+			b.applyAngularDamping(angularDamping * dt);
 			
 			// calculate
 			if (b.calcActivity() < b.getSleepingThreshold()) {

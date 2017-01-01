@@ -37,7 +37,7 @@ public class AppMain {
 	private Matrix4 matPers = new Matrix4();
 	
 	private Physics world = new Physics(7, 5, .04f, .3f);
-	private Shape bomb = new Box(1,1,1);
+	private Shape bomb;
 	private WorldSpring ws;
 	private WorldPinJoint wp;
 	
@@ -45,6 +45,8 @@ public class AppMain {
 	private boolean drawContactN = false;
 	private boolean drawContactT = false;
 	private boolean drawBBox = false;
+	
+	private boolean useCoreShape = false;
 	
 	// this is our lock
 //	final private ReentrantLock resLock = new ReentrantLock();
@@ -140,8 +142,8 @@ public class AppMain {
 				{8,7,6,5,4,3,2,1}
 		};
 		
-		world.setAngularDamping(.01f);
-		world.setLinearDamping(.0085f);
+		world.setAngularDamping(.05f);
+		world.setLinearDamping(.075f);
 		
 		// add contact generator
 		ContactGenerator cg = new ConvexShapeContactGenerator();
@@ -152,27 +154,34 @@ public class AppMain {
 		world.registerContactGenerator(Shape.SHAPE_CORE, Shape.SHAPE_CORE, new CoreShapesContactGenerator());
 		
 		// a collections of shape
+		Shape box1, cylinder,cone,box2,xbox,ybox,zbox;
 		// no-core version
-		Shape box1 = new Box(1, .75f, 1.25f);
-		Shape cylinder = new Convex(cylinder_vertex, cylinder_faces);
-		Shape cone = new Convex(cone_vertex, cone_faces);
-		Shape box2 = new Box(1.5f, 1.f, 1.75f);
-		
-		
-		Shape ybox = new Box(16, 1, 16);
-		Shape xbox = new Box(1, 16, 16);
-		Shape zbox = new Box(16, 16, 1);
-		
-		// core version
-//		Shape box1 = new CoreShape(new Box(1, .75f, 1.25f), .1f);
-//		Shape cylinder = new CoreShape(new Convex(cylinder_vertex, cylinder_faces),.1f);
-//		Shape cone = new CoreShape(new Convex(cone_vertex, cone_faces), .1f);
-//		Shape box2 = new CoreShape(new Box(1.5f, 1.f, 1.75f), .1f);
-//		
-//		
-//		Shape ybox = new CoreShape(new Box(16, 1, 16), .1f);
-//		Shape xbox = new CoreShape(new Box(1, 16, 16), .1f);
-//		Shape zbox = new CoreShape(new Box(16, 16, 1), .1f);
+		if (!useCoreShape) {
+			box1 = new Box(1, .75f, 1.25f);
+			cylinder = new Convex(cylinder_vertex, cylinder_faces);
+			cone = new Convex(cone_vertex, cone_faces);
+			box2 = new Box(1.5f, 1.f, 1.75f);
+			
+			
+			ybox = new Box(16, 1, 16);
+			xbox = new Box(1, 16, 16);
+			zbox = new Box(16, 16, 1);
+			
+			bomb = new Box(1,1,1);
+		} else {
+			// core version
+			box1 = new CoreShape(new Box(1, .75f, 1.25f), .1f);
+			cylinder = new CoreShape(new Convex(cylinder_vertex, cylinder_faces),.1f);
+			cone = new CoreShape(new Convex(cone_vertex, cone_faces), .1f);
+			box2 = new CoreShape(new Box(1.5f, 1.f, 1.75f), .1f);
+			
+			
+			ybox = new CoreShape(new Box(16, 1, 16), .1f);
+			xbox = new CoreShape(new Box(1, 16, 16), .1f);
+			zbox = new CoreShape(new Box(16, 16, 1), .1f);
+			
+			bomb = new CoreShape(new Box(1,1,1), .1f);
+		}
 		
 		// build world boundaries		
 		RigidBody bA = new RigidBody(-1.0f, ybox);
@@ -379,7 +388,12 @@ public class AppMain {
 			glWindow.destroy();
 			break;
 			
-		
+		case KeyEvent.VK_K:
+			synchronized (world) {
+				useCoreShape = !useCoreShape;
+				init();
+			}
+			break;
 			
 		case KeyEvent.VK_B:
 			drawBBox = !drawBBox;
