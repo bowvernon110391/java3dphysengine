@@ -16,4 +16,10 @@ public class CSOVertex {
 		a = new Vector3(v.a);
 		b = new Vector3(v.b);
 	}
+	
+	@Override
+	public boolean equals(Object e) {
+		// TODO Auto-generated method stub
+		return Vector3.equal(p, ((CSOVertex)e).p);
+	}
 }

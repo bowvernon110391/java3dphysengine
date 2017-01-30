@@ -42,6 +42,11 @@ public class RigidBody {
 	private boolean sleeping = false;			// if sleeping, do not update pos + vel + collide with each other
 	private boolean canSleep = true;			// by default, they can sleep
 	private int sleepTimer = 0;
+	private boolean continuous = false;			// is it continuous?
+	private float ccdRadius = 0.2f;				// default ccd Radius
+	private boolean clampMotion = false;		// clamp velocity?
+	private float maxAngVel = .0f;				// clamp to what?
+	private float maxLinVel = .0f;				// clamp to what?
 	
 	public RigidBody(float mass, Shape s) {
 		// Inertia and Mass calculation
@@ -317,6 +322,18 @@ public class RigidBody {
 		scaledAccel.setTo(angAccel);
 		scaledAccel.scale(dt);
 		Vector3.add(scaledAccel, angVel, angVel);
+		
+		// apply motion clamping
+		if (clampMotion) {
+			float ll = vel.length();
+			float al = angVel.length();
+			
+			if (ll > maxLinVel)
+				vel.scale(maxLinVel/ll);
+			
+			if (al > maxAngVel)
+				angVel.scale(maxAngVel/al);
+		}
 	}
 	
 	public void updatePosition(float dt) {
@@ -514,5 +531,35 @@ public class RigidBody {
 	}
 	public void setSleepingThreshold(float sleepingThreshold) {
 		this.sleepingThreshold = sleepingThreshold;
+	}
+	public boolean isContinuous() {
+		return continuous;
+	}
+	public void setContinuous(boolean continuous) {
+		this.continuous = continuous;
+	}
+	public float getCcdRadius() {
+		return ccdRadius;
+	}
+	public void setCcdRadius(float ccdRadius) {
+		this.ccdRadius = ccdRadius;
+	}
+	public boolean isClampMotion() {
+		return clampMotion;
+	}
+	public void setClampMotion(boolean clampMotion) {
+		this.clampMotion = clampMotion;
+	}
+	public float getMaxAngVel() {
+		return maxAngVel;
+	}
+	public void setMaxAngVel(float maxAngVel) {
+		this.maxAngVel = maxAngVel;
+	}
+	public float getMaxLinVel() {
+		return maxLinVel;
+	}
+	public void setMaxLinVel(float maxLinVel) {
+		this.maxLinVel = maxLinVel;
 	}
 }

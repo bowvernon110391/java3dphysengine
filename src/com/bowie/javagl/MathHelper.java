@@ -6,7 +6,7 @@ import java.util.Random;
 
 import com.bowie.javagl.Polytope.EPATriangle;
 
-public class MathHelper {
+public class MathHelper {	
 	static public int GJK_MAX_ITERATION = 32;
 	static public int EPA_MAX_ITERATION = 32;
 	static public float GJK_MARGIN_ERROR = 0.001f;
@@ -139,33 +139,6 @@ public class MathHelper {
 		return Quaternion.makeAxisRot(axis, angle);
 	}
 	
-	
-	static public Contact generateContactGJKEPA(RigidBody bA, RigidBody bB) {
-		// do gjk
-		Simplex s = new Simplex();
-		Vector3 dir = new Vector3(1, 0, 0);
-		
-		boolean collide = gjkColDet(bA.getShape(), bA.getPos(), bA.getRot(), bB.getShape(), bB.getPos(), bB.getRot(), dir, s);
-//		System.out.println("collide: " + collide);
-		
-		if (collide) {
-			// run EPA
-			Polytope pol = new Polytope(s);
-			EPAInfo inf = epaExecute(bA.getShape(), bA.getPos(), bA.getRot(), bB.getShape(), bB.getPos(), bB.getRot(), pol);
-			if (inf != null) {
-				// generate contact
-				Vector3 worldA = inf.calcContactA();
-				Vector3 worldB = inf.calcContactB();
-				Vector3 cN = inf.getNormal().inverse();
-				
-				Contact c = new Contact(worldA, worldB, cN, bA, bB);
-				return c;
-			}
-		}
-		
-		return null;
-	}
-	
 	/**
 	 * this wrap values to be between 0..1
 	 * @param v
@@ -290,26 +263,82 @@ public class MathHelper {
 	}
 	
 	public static Vector3 getClosestToTriangle(Vector3 p, Vector3 a, Vector3 b, Vector3 c) {
-		Vector3 bary = computeBarycentric(p, a, b, c);
+		Vector3 edge0 = Vector3.tmp0;
+		Vector3 edge1 = Vector3.tmp1;
+		Vector3 v0 = Vector3.tmp2;
 		
-		// inside triangle, return combination of abc
-//		System.out.println("tri_bary: " + bary.x + ", " +bary.y+", " +bary.z);
-		if (bary.x >= 0 && bary.y >= 0 && bary.z >= 0) {
-			return new Vector3(
-					bary.x * a.x + bary.y * b.x + bary.z * c.x,
-					bary.x * a.y + bary.y * b.y + bary.z * c.y,
-					bary.x * a.z + bary.y * b.z + bary.z * c.z
-					);
-		} else if (bary.x < 0) {
-			// on segment BC
-			return getClosestToLine(p, b, c, true);
-		} else if (bary.y < 0) {
-			// on segment AC
-			return getClosestToLine(p, a, c, true);
+		Vector3.sub(b, a, edge0);
+		Vector3.sub(c, a, edge1);
+		Vector3.sub(a, p, v0);
+		
+		float fa = Vector3.dot(edge0, edge0);
+		float fb = Vector3.dot(edge0, edge1);
+		float fc = Vector3.dot(edge1, edge1);
+		float fd = Vector3.dot(edge0, v0);
+		float fe = Vector3.dot(edge1, v0);
+		
+		float det = fa*fc - fb*fb;
+		float s = fb*fe - fc*fd;
+		float t = fb*fd - fa*fe;
+		
+		if (s+t < det) {
+			if (s < 0.0f) {
+				if (t < 0.0f) {
+					if (fd < 0.0f) {
+						s = MathHelper.clamp(-fd/fa,  0, 1);
+						t = 0;
+					} else {
+						s = 0;
+						t = MathHelper.clamp(-fe/fc, 0, 1);
+					}
+				} else {
+					s = 0;
+					t = MathHelper.clamp(-fe/fc, 0, 1);
+				}
+			} else if (t < 0.0f) {
+				s = MathHelper.clamp(-fd/fa, 0, 1);
+				t = 0;
+			} else {
+				float invDet = 1.0f/det;
+				s *= invDet;
+				t *= invDet;
+			}
 		} else {
-			// on segment AB
-			return getClosestToLine(p, a, b, true);
+			if (s < 0.0f) {
+				float tmp0 = fb+fd;
+				float tmp1 = fc+fe;
+				if (tmp1 > tmp0) {
+					float numer = tmp1 - tmp0;
+					float denom = fa-2*fb+fc;
+					s = MathHelper.clamp(numer/denom, 0, 1);
+					t = 1.0f-s;
+				} else {
+					t = MathHelper.clamp(-fe/fc, 0, 1);
+					s = 0.0f;
+				}
+			} else if (t < 0.0f) {
+				if (fa+fd > fb+fe) {
+					float numer = fc+fe-fb-fd;
+					float denom = fa-2*fb+fc;
+					s = MathHelper.clamp(numer/denom, 0, 1);
+					t = 1.0f-s;
+				} else {
+					s = MathHelper.clamp(-fe/fc, 0, 1);
+					t = 0.0f;
+				}
+			} else {
+				float numer = fc+fe-fb-fd;
+				float denom = fa-2*fb+fc;
+				s = MathHelper.clamp(numer/denom, 0, 1);
+				t = 1.0f-s;
+			}
 		}
+		
+		return new Vector3(
+				a.x + s * edge0.x + t * edge1.x,
+				a.y + s * edge0.y + t * edge1.y,
+				a.z + s * edge0.z + t * edge1.z
+				);
 	}
 	
 	public static Vector3 getClosestToTetrahedron(Vector3 p, Vector3 a, Vector3 b, Vector3 c, Vector3 d) {
@@ -691,61 +720,6 @@ public class MathHelper {
 //		return false;
 //	}
 	
-	/**
-	 * gjkColdet - perform GJK collision detection between 2 convex shapes
-	 * @param sA	- shape A
-	 * @param posA	- position of shape A
-	 * @param rotA	- rotation of shape A
-	 * @param sB	- shape B
-	 * @param posB	- position of shape B
-	 * @param rotB	- rotation of shape B
-	 * @param dir	- initial direction (for faster termination, use last collision data)
-	 * @param simp	- the simplex to modify. after returning, this will contain data
-	 * @return	true if the two shapes intersect, false otherwise
-	 */
-	public static boolean gjkColDet(Shape sA, Vector3 posA, Quaternion rotA, Shape sB, Vector3 posB, Quaternion rotB, Vector3 dir, Simplex simp) {
-		// make sure we have simplex
-		if (simp == null)
-			simp = new Simplex();
-		else
-			simp.reset();
-		
-		// give initial support
-		simp.addSupport(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
-		
-		// reverse direction
-		dir.scale(-1.0f);
-		
-		// this is to ensure termination (INCREASE FOR MORE accuracy for curved shapes)
-		int iter = 0;
-		
-		while (iter++ < GJK_MAX_ITERATION) {
-			// add support point. remove unimportant one from simplex
-			simp.addSupport(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir));
-			
-			// means we won't get better
-			if (Vector3.dot(simp.getLast().p, dir) <= Vector3.EPSILON) {
-				// early out. Would be better to keep track of last direction?
-				// wait. ensure we get triangle
-				return false;
-			} else {
-				
-				
-				// do we have origins?
-				if (simp.hasOrigin()) {
-					// stop here
-//					System.out.println("gjk terminate iter: " + iter);
-					return true;
-				} else {
-					// welp, get new direction then
-					dir = simp.calcNewDir();
-					simp.lastDir = dir;
-				}
-			}
-		}
-		System.out.println("gjk hard fail (not colliding) @ " + iter);
-		return false;
-	}
 	
 	public static float calcTriangleArea(Vector3 a, Vector3 b, Vector3 c) {
 		Vector3 AB = new Vector3();
@@ -783,12 +757,16 @@ public class MathHelper {
 		// smart user found. give him blowjob
 		int iterCnt = 0;
 		Vector3 proj = new Vector3();
-		Vector3 o = new Vector3();
+		Vector3 o = Vector3.ZERO;
 		while (iterCnt++ < EPA_MAX_ITERATION) {
 			// Grab closest triangle from origin + projection
 			EPATriangle t = poly.getClosestTriangle(o, proj);
 			
 			// if proj is too close, use normal
+			if (t == null) {
+				System.out.println("MATH EPA!! IMPOSSIBLE ERROR!!!!  " + poly.tris.size());
+				return null;
+			}
 			Vector3 dir = t.n;
 			/*if (proj.lengthSquared() < Vector3.EPSILON) {
 				dir = t.n;

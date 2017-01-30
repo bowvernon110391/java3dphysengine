@@ -18,9 +18,7 @@ public class Contact {
 	public float bias, friction, restitution, kRestitution;				// bias impulse and friction constant, and restitution
 	public float massN, massT1, massT2;	// effective mass of each constraint
 	
-	public RigidBody bodyA, bodyB;	// rigid body
-	
-	
+	public RigidBody bodyA, bodyB;	// rigid body	
 	
 	public Contact(Vector3 worldA, Vector3 worldB, Vector3 normal, RigidBody bA, RigidBody bB) {
 		this.worldA = new Vector3(worldA);

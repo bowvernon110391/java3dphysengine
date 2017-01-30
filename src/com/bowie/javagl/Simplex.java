@@ -1,7 +1,6 @@
 package com.bowie.javagl;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 import com.jogamp.opengl.GL2;
@@ -12,9 +11,34 @@ import com.jogamp.opengl.GL2;
  *
  */
 public class Simplex {
+	private static final boolean debug = false;
+	
 	private List<CSOVertex> points;
+	private List<CSOVertex> history;
 	public Vector3 lastDir = new Vector3(1, 0, 0);
 	
+	static public final int SIMPLEX_CANNOT_EVOLVE = 0;
+	static public final int SIMPLEX_CONTAIN_ORIGIN = 1;
+	static public final int SIMPLEX_EVOLVED = 2;
+	
+//	static public final int RAY_NOT_HIT = 0;
+//	static public final int RAY_HIT = 1;
+//	static public final int RAY_INSIDE = 2;
+	
+	// raycast result
+	static public final int RAY_WONT_HIT = 0;		// caused by parallel ray
+	static public final int RAY_HIT = 1;			// it hits!
+	static public final int RAY_START_INSIDE = 2;	// it starts inside
+	static public final int RAY_STILL_MARCHING = 3;	// it still needs to march, no conclusion yet
+	
+	static public final float RAY_MARGIN_SQUARED = 0.01f * 0.01f;
+	//=============RAYCAST DATA===========================================
+	public Vector3 rayhitPos;
+	public Vector3 rayhitNormal;
+	public Vector3 rayOrigin;
+	public Vector3 rayCurrentO;
+	public Vector3 rayEnd;
+	public float rayT, rayR;
 	
 	//=============STRICTLY TEST DATA=====================================
 	public Shape sA, sB;
@@ -28,11 +52,15 @@ public class Simplex {
 	public Vector3 closestPointToOrigin = null;
 	
 	public Vector3 cA, cB;
+	
+	private CSOVertex lastRemoved = null;
 	//=============STRICTLY TEST DATA=====================================
 	
 	
-	public Simplex(Shape sA, Vector3 posA, Quaternion rotA, Shape sB, Vector3 posB, Quaternion rotB, Vector3 initDir) {
-		this();
+	public Simplex(Shape sA, Vector3 posA, Quaternion rotA, Shape sB, Vector3 posB, Quaternion rotB) {
+		// allocate data
+		points = new ArrayList<>(4);
+		history = new ArrayList<>(4);
 		
 		// then do another things
 		this.sA	= sA;
@@ -47,10 +75,6 @@ public class Simplex {
 		if (pAB.lengthSquared() > Vector3.EPSILON)
 			this.currentDir.setTo(pAB);
 		else*/ 
-		if (initDir.lengthSquared() > Vector3.EPSILON)
-			this.currentDir.setTo(initDir);
-		else
-			this.currentDir.setTo(1,0,0);
 		
 		iter = 0;
 		closestDist = Float.MAX_VALUE;
@@ -60,15 +84,386 @@ public class Simplex {
 		cA = null;
 		cB = null;
 		
-		// add 2 points
-		this.addSupportConservatively(grabMinkowskiDiff());
-		// flip
-		this.currentDir.scale(-1.0f);
+		// init raycast data
+		rayhitPos = new Vector3();
+		rayhitNormal = new Vector3();
+		rayOrigin = new Vector3();
+		rayEnd = new Vector3();
+		rayCurrentO = new Vector3();
+		rayT = -1.f;
 	}
 	
-	public CSOVertex grabMinkowskiDiff() {
-		// based on current direction..find it
-		return Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, currentDir);
+	public boolean containOrigin() {
+		// check case depending on num of point
+		int numPoint = points.size();
+		
+		CSOVertex a,b,c,d;
+		Vector3 cp;
+		switch (numPoint) {
+		
+		case 1:
+			a = points.get(0);
+			
+			return a.p.lengthSquared() < Vector3.EPSILON;
+		case 2:
+			a = points.get(0);
+			b = points.get(1);
+			
+			cp = MathHelper.getClosestToLine(Vector3.ZERO, a.p, b.p, true);
+			return cp.lengthSquared() < Vector3.EPSILON;
+		case 3:
+			a = points.get(0);
+			b = points.get(1);
+			c = points.get(2);
+			
+			cp = MathHelper.getClosestToTriangle(Vector3.ZERO, a.p, b.p, c.p);
+			return cp.lengthSquared() < Vector3.EPSILON;
+		case 4:
+			// compute barycentric coordinate
+			a = points.get(0);
+			b = points.get(1);
+			c = points.get(2);
+			d = points.get(3);
+			
+			Quaternion bary = MathHelper.computeBarycentric(Vector3.ZERO, a.p, b.p, c.p, d.p);
+			return bary.x > 0 && bary.y > 0 && bary.z > 0 && bary.w > 0;
+		}
+		
+		return false;
+	}
+	
+	/**
+	 * this function computes new direction that will bring us closer
+	 * to origin
+	 * @param dir		- current direction
+	 * @param origin	- the origin to where we are heading
+	 * @param tolerance	- the EPSILON value, to which we assume the origin distance is too close
+	 * @param autoremove- if TRUE, prevent the simplex from forming a tetrahedron
+	 * @return			- true if we can find new direction, false if origin is contained
+	 */
+	public boolean computeDirection(Vector3 dir, Vector3 origin, float tolerance, boolean autoremove) {
+		Vector3 o = origin;
+		if (o == null) {
+			o = Vector3.ZERO;
+		}
+		// depending on number of points we got
+		int numP = points.size();
+//		System.out.println("computeDir: " + numP);
+		
+		CSOVertex a,b,c,d;
+		Vector3 cp;
+		
+		switch (numP) {
+		case 1:
+			a = points.get(0);
+			// check if it's degenerate
+			if (Vector3.distBetween(o, a.p) < tolerance/*Vector3.EPSILON*/) {
+				// that means a is origin
+				if (debug)
+					System.out.printf("COMPUTEDIR TOO CLOSE @ 0-SIMP : %.4f%n", Vector3.distBetween(o, a.p));
+				return false;
+			} else {
+				dir.setTo(o.x-a.p.x, o.y-a.p.y, o.z-a.p.z);
+			}
+			return true;
+		case 2:
+			a = points.get(0);
+			b = points.get(1);
+			
+			cp = MathHelper.getClosestToLine(Vector3.ZERO, a.p, b.p, true);
+			
+			if (Vector3.distBetween(o, cp) < tolerance/*Vector3.EPSILON*/) {
+				// that means origin lies on AB
+				if (debug)
+					System.out.printf("COMPUTEDIR TOO CLOSE @ 1-SIMP : %.4f%n", Vector3.distBetween(o, cp));
+				return false;
+			} else {
+				dir.setTo(o.x-cp.x, o.y-cp.y, o.z-cp.z);
+			}
+			return true;
+		case 3:
+			a = points.get(0);
+			b = points.get(1);
+			c = points.get(2);
+			
+			cp = MathHelper.getClosestToTriangle(Vector3.ZERO, a.p, b.p, c.p);
+			
+			if (Vector3.distBetween(o, cp) < tolerance/*Vector3.EPSILON*/) {
+				// that means origin is on plane ABC
+				if (debug)
+					System.out.printf("COMPUTEDIR TOO CLOSE @ 2-SIMP : %.4f%n", Vector3.distBetween(o, cp));
+				return false;		
+			} else {
+				// safe to use
+				dir.setTo(o.x-cp.x, o.y-cp.y, o.z-cp.z);
+			}
+			return true;
+		case 4:
+			a = points.get(0);
+			b = points.get(1);
+			c = points.get(2);
+			d = points.get(3);
+			// ensure that we're not inside
+			Quaternion bary = MathHelper.computeBarycentric(o, a.p, b.p, c.p, d.p);
+			if (bary.x > 0 && bary.y > 0 && bary.z > 0 && bary.w > 0) {
+				// that means origin is contained within tetrahedron
+				if (debug)
+					System.out.printf("COMPUTEDIR TOO CLOSE @ 3-SIMP : {%.4f, %.4f, %.4f, %.4f}%n", 
+						bary.x, bary.y, bary.z, bary.w);
+				if (autoremove) {
+					if (debug)
+						System.out.println("UNIMPORTANT POINT REMOVED");
+					// do the removal
+					if (bary.x < bary.y && bary.x < bary.z && bary.x < bary.w) {
+						// remove a
+						points.remove(0);
+					} else if (bary.y < bary.x && bary.y < bary.z && bary.y < bary.w) {
+						// remove b
+						points.remove(1);
+					} else if (bary.z < bary.x && bary.z < bary.y && bary.z < bary.w) {
+						// remove c
+						points.remove(2);
+					} else {
+						// remove d
+						points.remove(3);
+					}
+				}
+				return false;
+			}
+			
+			// grab closest			
+			Vector3 abc = MathHelper.getClosestToTriangle(o, a.p, b.p, c.p);
+			Vector3 bcd = MathHelper.getClosestToTriangle(o, b.p, c.p, d.p);
+			Vector3 cda = MathHelper.getClosestToTriangle(o, c.p, d.p, a.p);
+			Vector3 abd = MathHelper.getClosestToTriangle(o, a.p, b.p, d.p);
+			
+			CSOVertex removed = d;
+			Vector3 closest = abc;
+			float closestD = Vector3.distBetween(o, abc);//abc.lengthSquared();
+			
+			// test bcd
+			float dist = Vector3.distBetween(o, bcd);//bcd.lengthSquared();
+			if (dist < closestD) {
+				removed = a;
+				closestD = dist;
+				closest = bcd;
+			}
+			
+			// test cda
+			dist = Vector3.distBetween(o, cda);//cda.lengthSquared();
+			if (dist < closestD) {
+				removed = b;
+				closestD = dist;
+				closest = cda;
+			}
+			
+			// test abd
+			dist = Vector3.distBetween(o, abd);//abd.lengthSquared();
+			if (dist < closestD) {
+				removed = c;
+				closestD = dist;
+				closest = abd;
+			}
+			
+			// keep entry on the last removed
+			lastRemoved = removed;
+			points.remove(removed);
+			dir.setTo(o.x-closest.x, o.y-closest.y, o.z-closest.z);
+			return true;
+		}
+		return false;
+	}
+	
+	public void GJK_Init() {
+		// init direction, and clear shits
+		points.clear();
+		history.clear();
+		
+		lastDir.x = posB.x - posA.x;
+		lastDir.y = posB.y - posA.y;
+		lastDir.z = posB.z - posA.z;
+		
+		if (lastDir.lengthSquared() < Vector3.EPSILON) {
+			// give good direction
+			lastDir.setTo(1, 0, 0);
+		}
+		
+		currentDir.setTo(lastDir);
+		
+		closestDist = Float.MAX_VALUE;
+		closestPointToOrigin = null;
+		
+		cA = null;
+		cB = null;
+	}
+	
+	public int GJK_Evolve() {
+		CSOVertex v = Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, lastDir);
+		
+		if (!addSupportPoint(v)) {
+			
+			if (debug)
+				System.out.printf("Simplex.GJK_Evolve: Cant evolve more! pt: %d%n", points.size());
+			
+			cA = new Vector3();
+			cB = new Vector3();
+//			
+			getClosestPoint(cA, cB);
+			
+			return SIMPLEX_CANNOT_EVOLVE;
+		}
+		
+		// is it better?
+		float dot = Vector3.dot(lastDir, v.p);
+		if (dot <= 0) {
+			if (debug)
+				System.out.println("the last point is not better. ISA GJK POTENTIAL EARLY OUT!! " + dot);
+		}
+		
+		closestPointToOrigin = closestToOrigin();
+		float d = closestPointToOrigin.lengthSquared();
+		
+		if (d < closestDist) {
+			if (debug)
+				System.out.printf("Simplex.GJK_Evolve: getting closer from %.4f -> %.4f%n", closestDist, d);
+			closestDist = d;
+		} else {
+			if (debug)
+				System.out.printf("Simplex.GJK_Evolve: WTF!!! DIDN'T GET CLOSER!! %.4f -> %.4f%n", closestDist, d);
+			// remove last point
+			points.remove(v);
+			
+			cA = new Vector3();
+			cB = new Vector3();
+//			
+			getClosestPoint(cA, cB);
+			
+			return SIMPLEX_CANNOT_EVOLVE;
+		}
+		
+		
+		// change direction. only fail if origin is contained
+		if (!computeDirection(lastDir, Vector3.ZERO, Vector3.EPSILON, false)) {
+			// dang, we've contained
+			if (debug)
+				System.out.printf("Simplex.GJK_Evolve: Origin CONTAINEDD!!%n");
+			return SIMPLEX_CONTAIN_ORIGIN;
+		} else {
+			if (debug)
+				System.out.printf("Simplex: new dir-> %.4f,  %.4f, %.4f%n", lastDir.x, lastDir.y, lastDir.z);
+		}
+		
+		return SIMPLEX_EVOLVED;
+	}
+	
+	public boolean GJK(boolean ISAGJK) {
+		// perform gjk
+		// grab initial direction
+		lastDir.x = posB.x - posA.x;
+		lastDir.y = posB.y - posA.y;
+		lastDir.z = posB.z - posA.z;
+		
+		if (lastDir.lengthSquared() < Vector3.EPSILON) {
+			// give good direction
+			lastDir.setTo(1, 0, 0);
+		}
+		
+		// now we loop all over
+		int iter = 0;
+		while (iter++ < MathHelper.GJK_MAX_ITERATION) {
+			// push initial support point
+			CSOVertex v = Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, lastDir);
+			
+			// is this new point?
+			if (!addSupportPoint(v)) {
+				// failing to add point means that point is already added
+				// which means we can't get better
+				return false;
+			}
+			
+			// ISA GJK BEGIN HERE
+			// check if last . dir < EPSILON, then return false
+			if (ISAGJK) {
+				float dot = Vector3.dot(v.p, lastDir);
+				if (dot < Vector3.EPSILON) {
+					// that means it won't even reach past origin
+					return false;
+				}
+			}
+			// ISA GJK END HERE
+			
+			// now we check if we contain origin
+			
+			if (!computeDirection(lastDir, Vector3.ZERO, Vector3.EPSILON, false)) {
+				// failing to compute new direction means origin is contained
+				// welp, blow simplex if it's not tetrahedron yet
+				if (points.size() < 4)
+					blow();
+				return true;
+			}
+			
+		}
+		
+		if (iter >= MathHelper.GJK_MAX_ITERATION) {
+			if (debug)
+				System.out.println("GJK: FAIL HARD!!! " + iter);
+		}
+		
+		return false;
+	}
+	
+	public void blow() {
+		// we blow until it becomes tetrahedron
+		int numP = points.size();
+		while (numP < 4) {
+			if (numP == 1) {
+				// point case
+				// just shoot at random direction
+				lastDir.setTo(1, 0, 0);
+				CSOVertex v = Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, lastDir);
+				points.add(v);
+			} else if (numP == 2) {
+				// line case
+				// make another direction that is perpendicular
+				
+				Vector3 n = Vector3.tmp0;
+				Vector3.sub(points.get(1).p, points.get(0).p, n);
+				
+				if (Math.abs(n.x) >= 0.57735f) {
+					lastDir.x = n.y;
+					lastDir.y = -n.z;
+					lastDir.z = 0;
+				} else {
+					lastDir.x = 0;
+					lastDir.y = n.z;
+					lastDir.z = -n.y;
+				}
+				CSOVertex v = Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, lastDir);
+				points.add(v);
+			} else if (numP == 3) {
+				// triangle case
+				// compute normal
+				Vector3 AB = Vector3.tmp0;
+				Vector3 AC = Vector3.tmp1;
+				Vector3 n = Vector3.tmp2;
+				
+				Vector3.sub(points.get(1).p, points.get(0).p, AB);
+				Vector3.sub(points.get(2).p, points.get(0).p, AB);
+				Vector3.cross(AB, AC, n);
+				
+				lastDir.setTo(n);
+				CSOVertex v = Shape.minkowskiDiff(sA, AB, rotA, sB, AC, rotB, lastDir);
+				if (!addSupportPoint(v)) {
+					// welp, reverse it
+					lastDir.scale(-1);
+					v = Shape.minkowskiDiff(sA, AB, rotA, sB, AC, rotB, lastDir);
+					addSupportPoint(v);
+				}
+			}
+			
+			// update num point
+			numP = points.size();
+		}
 	}
 	
 	public boolean advance() {
@@ -81,7 +476,11 @@ public class Simplex {
 //		System.out.println("SIMPLEX.ADVANCE -- " + iter);
 		iter++;
 		// we add point
-		this.addSupportConservatively(grabMinkowskiDiff());
+		if (!addSupportPoint(Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, currentDir))) {
+			System.out.println("SIMPLEX TRIED ADDING OLD POINT!!");
+			return false;
+		}
+//		this.addSupportConservatively(grabMinkowskiDiff());
 		// now we find closest from origin..but we must check first if we're degenerate
 //		if (isDegenerate()) {
 //			// warn user
@@ -89,19 +488,20 @@ public class Simplex {
 //		}
 		
 		// we have at least 2 point, so simply add shit based on closest direction
-		closestPointToOrigin = closestToOrigin();
-		float d = closestPointToOrigin.lengthSquared();
+		
 		
 		// check if we have origin inside
-		if (hasOrigin()) {
+		if (containOrigin()) {
 //			System.out.println("SIMPLEX CONTAIN ORIGIN!! EXITING...");
 			containsOrigin = true;
 			return true;
 		}
 		
+		closestPointToOrigin = closestToOrigin();
+		float d = closestPointToOrigin.lengthSquared();
 		// check if we're close
 		if (Math.abs(closestDist - d) < MathHelper.GJK_MARGIN_ERROR) {
-//			System.out.printf("SIMPLEX CONVERGED WITH SEP_DIST: %f%n", Math.abs(closestDist - d));
+			System.out.printf("SIMPLEX CONVERGED WITH SEP_DIST: %f%n", Math.abs(closestDist - d));
 			converged = true;
 			
 			// make sure our simplex isn't degenerate
@@ -117,17 +517,17 @@ public class Simplex {
 			Vector3 n = new Vector3(cA, cB);
 			float dist = n.length();
 			n.normalize();
-//			System.out.printf("closest distance: %.4f, n = [%.4f %.4f %.4f]%n", dist, n.x, n.y, n.z);
+			System.out.printf("closest distance: %.4f, n = [%.4f %.4f %.4f]%n", dist, n.x, n.y, n.z);
 			
 			return true;
 		}
 		
 		// Gotta warn too if distance is shit
 		if (d > closestDist) {
-//			System.out.println("SIMPLEX WARNING!! RECENT DISTANCE IS FARTHER!!: " + d + " > " + closestDist);
+			System.out.println("SIMPLEX WARNING!! RECENT DISTANCE IS FARTHER!!: " + d + " > " + closestDist);
 			return false;
 		} else {
-//			System.out.printf("SIMPLEX MSG: updating closest distance from %.4f -> %.4f %n", closestDist, d);
+			System.out.printf("SIMPLEX MSG: updating closest distance from %.4f -> %.4f %n", closestDist, d);
 			// we're getting better, update
 			closestDist = d;
 		}
@@ -145,12 +545,9 @@ public class Simplex {
 	
 	//=============STRICTLY TEST DATA=====================================
 	
-	public Simplex() {
-		points = new ArrayList<>(4);
-	}
-	
 	public void reset() {
 		points.clear();
+		history.clear();
 		
 		//=============STRICTLY TEST DATA=====================================
 		iter = 0;
@@ -162,6 +559,435 @@ public class Simplex {
 		cA = null;
 		cB = null;
 		//=============STRICTLY TEST DATA=====================================
+	}
+	
+	// init raycast data (which is not covered by simplex)
+	public void raycastInit(Vector3 rS, Vector3 rE, float radius) {
+		// set initial ray position
+		rayCurrentO.setTo(rS);
+		rayOrigin.setTo(rS);
+		rayEnd.setTo(rE);
+		// ignore radius for now
+		rayhitNormal.setTo(Vector3.ZERO);
+		
+		// set rayT to 0
+		rayT = 0;
+		rayR = radius;
+		
+		// last dir set to > rayCurrentO - posA
+		Vector3.sub(rS, posA, lastDir);
+//		Vector3.sub(rE, rS, lastDir);
+		
+		// reset gjk info
+		points.clear();
+		history.clear();
+		lastRemoved = null;
+	}
+	
+	/**
+	 * raycastStep - do a single step of GJK raycast
+	 * @return ray hit status code
+	 */
+	public int raycastStep() {
+		// use rayCurrentO as b's point	
+		boolean collide = false;
+		// do GJK step
+		if (debug)
+			System.out.println("GJK RAYCAST: evolving simplex...");
+		int iter = 0;
+		while (iter++ < MathHelper.GJK_MAX_ITERATION) {
+			// push initial support point
+			Vector3 supA = sA.supportPoint(lastDir, posA, rotA);
+			
+			// gotta inflate it along the direction (IF RAY HAS RADIUS)
+			// only do it if it's really necessary (cause round shapes = slow convergence)
+			// better use subdivided cylinder (polygon-shaped cylinder/round shapes)
+			// this means better do convex cast than sphere cast
+			Vector3 supB;			
+			if (rayR > Vector3.EPSILON) {
+				// lastDir always point to origin
+				Vector3 n = lastDir.normalized();
+				supB = new Vector3(
+						rayCurrentO.x - n.x * rayR,
+						rayCurrentO.y - n.y * rayR,
+						rayCurrentO.z - n.z * rayR
+						);
+			} else {
+				supB = new Vector3(rayCurrentO);
+			}
+			
+			// build CSOVertex
+			CSOVertex v = new CSOVertex(supA, supB);
+			
+			// is this new point?
+			if (!addSupportPoint(v)) {
+				// failing to add point means that point is already added
+				// which means we can't get better
+				collide = false;
+				break;
+			}
+			
+			// use this direction as normal?
+			rayhitNormal.setTo(lastDir);
+			
+			// now we check if we contain origin
+			if (!computeDirection(lastDir, Vector3.ZERO, RAY_MARGIN_SQUARED, true)) {
+				collide = true;
+				break;
+			}			
+		}
+		
+		if (debug)
+			System.out.println("GJK RAYCAST: simplex evolved in : " + iter);
+		
+		if (!collide) {
+			// compute segment from current origin
+			Vector3 seg = new Vector3(rayEnd, rayCurrentO);
+			
+			// use last direction as normal
+			float uv = lastDir.lengthSquared();
+			float vv = -Vector3.dot(seg, lastDir);
+			
+			if (uv < RAY_MARGIN_SQUARED) {
+				// we've hit!!
+				if (debug)
+					System.out.printf("GJK RAYCAST: RAY HIT!!! SUCCESS!! @ %.4f  dist(%.4f)%n", rayT, uv);
+				
+				// ALREADY VALID
+				// SIMPLY CALCULATE DATA: NORMAL, RAYHITPOS
+				
+				return RAY_HIT;
+			}
+			
+			if (Math.abs(vv) < Vector3.EPSILON) {
+				// ray is parallel!!!
+				if (debug)
+					System.out.println("GJK RAYCAST: RAY IS PARALLEL!! QUITTING...");
+				return RAY_WONT_HIT;
+			}
+			
+			float t = uv / vv;
+			// it must be valid
+			if (t < 0 || t > 1) {
+				if (debug)
+					System.out.printf("GJK RAYCAST: invalid ray segment : %.4f%n", t);
+				return RAY_WONT_HIT;
+			}
+			
+			
+			
+			// move rayCurrentO by that amount
+			rayT += (1.f-rayT) * t;
+			
+			if (debug)
+				System.out.printf("GJK RAYCAST: we can advance ray by %.4f --> %.4f%n", t, rayT);
+			
+			rayCurrentO.x += (rayEnd.x - rayCurrentO.x) * t;
+			rayCurrentO.y += (rayEnd.y - rayCurrentO.y) * t;
+			rayCurrentO.z += (rayEnd.z - rayCurrentO.z) * t;
+			
+			// shift direction
+			computeDirection(lastDir, new Vector3(rayCurrentO, rayOrigin), RAY_MARGIN_SQUARED, false);
+			
+		} else {
+			if (debug)
+				System.out.printf("GJK RAYCAST: RAY START INSIDE!! @ %.4f%n", rayT);
+			
+			// VALID CRITERIA:
+			// 0 <= t <= 1
+			if (rayT > Vector3.EPSILON && rayT <= 1.f)
+				return RAY_HIT;
+			else
+				return RAY_START_INSIDE;
+		}
+		
+		// we still need to march the ray
+		return RAY_STILL_MARCHING;
+	}
+	
+	public int doRayCast(Vector3 rS, Vector3 rE, float radius) {
+		// init raycast data
+		raycastInit(rS, rE, radius);
+		
+		// keep advancing
+		int retVal = RAY_STILL_MARCHING;
+		
+		do {
+			retVal = raycastStep();
+		} while (retVal == RAY_STILL_MARCHING);
+		
+		// check return values, we need to calculate something here
+		if (retVal == RAY_HIT) {
+			// calculate some data
+			if (debug)
+				System.out.println("GJKRAYCAST: ray hit!! calculating some data...");
+			
+			if (points.size() >= 3) {
+				// this is the only valid stats tho
+				CSOVertex a = points.get(0);
+				CSOVertex b = points.get(1);
+				CSOVertex c = points.get(2);
+				
+				// first, the only known data is rayT
+				// so let's calculate normal (easy)
+				Vector3 ab = Vector3.tmp0;
+				Vector3 ac = Vector3.tmp1;
+				
+				Vector3.sub(b.p, a.p, ab);
+				Vector3.sub(c.p, a.p, ac);
+				
+				Vector3.cross(ab, ac, rayhitNormal);
+				
+				// make sure it's facing the ray
+				Vector3.sub(rE, rS, ab);
+				
+				float d = Vector3.dot(ab, rayhitNormal);
+				
+				if (d > 0.0f) {
+					// flip
+					rayhitNormal.scale(-1.f);
+				}
+				
+				// normalize
+				rayhitNormal.normalize();
+				
+				// now let's calculate ray hit point
+				// 1. calculate segment position
+				rayhitPos.setTo(
+						rS.x * (1.f-rayT) + rE.x * rayT, 
+						rS.y * (1.f-rayT) + rE.y * rayT, 
+						rS.z * (1.f-rayT) + rE.z * rayT
+						);
+				// 2. offset it along the radius * normal
+				if (radius > Vector3.EPSILON) {
+					rayhitPos.x -= rayhitNormal.x * radius;
+					rayhitPos.y -= rayhitNormal.y * radius;
+					rayhitPos.z -= rayhitNormal.z * radius;
+				}
+				
+			}
+		}
+		
+		if (debug)
+			System.out.println("GJKRAYCAST: SHIT retcode= " + retVal);
+		
+		return retVal;
+	}
+	
+	// For convex cast
+	public void convexCastInit(Vector3 vA, Vector3 vB) {
+		// all ray data is now in GJK space, different than the raycast one
+		// ray start is posA - posB
+		rayOrigin.setTo(posA.x-posB.x, posA.y-posB.y, posA.z-posB.z);
+		rayCurrentO.setTo(rayOrigin);
+		// the ray end
+		rayEnd.setTo(rayOrigin.x + vB.x-vA.x, 
+				rayOrigin.y + vB.y-vA.y, 
+				rayOrigin.z + vB.z-vA.z);
+		
+		// the remaining data is set like raycastInit
+		// set rayT to 0
+		rayT = 0;
+		
+		// last dir set to ---> inverse of ray direction
+		Vector3.sub(rayOrigin, rayEnd, lastDir);		
+		
+		// reset gjk info
+		points.clear();
+		history.clear();
+		lastRemoved = null;
+	}
+	
+	/**
+	 * convexCastStep - this function perform a step of the convex cast algorithm
+	 * @return one of the return code of raycast
+	 */
+	public int convexCastStep() {
+		// use rayCurrentO as b's point	
+		boolean collide = false;
+		// do GJK step
+		if (debug)
+			System.out.println("GJK CONVEXCAST: evolving simplex...");
+		int iter = 0;
+		while (iter++ < MathHelper.GJK_MAX_ITERATION) {
+			// push initial support point
+			Vector3 supA = sA.supportPoint(lastDir, posA, rotA);
+			Vector3 supB = sB.supportPoint(lastDir.inverse(), posB, rotB);
+			
+			// either support point a or b needs to be adjusted according to current ray start position
+//			supA.x -= (rayCurrentO.x-rayOrigin.x);
+//			supA.y -= (rayCurrentO.y-rayOrigin.y);
+//			supA.z -= (rayCurrentO.z-rayOrigin.z);
+			
+			supB.x += (rayCurrentO.x-rayOrigin.x);
+			supB.y += (rayCurrentO.y-rayOrigin.y);
+			supB.z += (rayCurrentO.z-rayOrigin.z);
+			
+			
+			// build CSOVertex
+			CSOVertex v = new CSOVertex(supA, supB);
+			
+			// is this new point?
+			if (!addSupportPoint(v)) {
+				// failing to add point means that point is already added
+				// which means we can't get better
+				collide = false;
+				break;
+			}
+			
+			// now we check if we contain origin
+			if (!computeDirection(lastDir, Vector3.ZERO, RAY_MARGIN_SQUARED, true)) {
+				collide = true;
+				break;
+			}			
+		}
+		
+		if (debug)
+			System.out.println("GJK CONVEXCAST: simplex evolved in : " + iter);
+		
+		if (!collide) {
+			// compute segment from current origin
+			Vector3 seg = new Vector3(rayEnd, rayCurrentO);
+			
+			// use last direction as normal
+			float uv = lastDir.lengthSquared();
+			float vv = -Vector3.dot(seg, lastDir);
+			
+			if (uv < RAY_MARGIN_SQUARED) {
+				// we've hit!!
+				if (debug)
+					System.out.printf("GJK CONVEXCAST: RAY HIT!!! SUCCESS!! @ %.4f  dist(%.4f)%n", rayT, uv);
+				
+				// ALREADY VALID
+				// SIMPLY CALCULATE DATA: NORMAL, RAYHITPOS
+				
+				return RAY_HIT;
+			}
+			
+			if (Math.abs(vv) < Vector3.EPSILON) {
+				// ray is parallel!!!
+				if (debug)
+					System.out.println("GJK CONVEXCAST: RAY IS PARALLEL!! QUITTING...");
+				return RAY_WONT_HIT;
+			}
+			
+			float t = uv / vv;
+			// it must be valid
+			if (t < 0 || t > 1) {
+				if (debug)
+					System.out.printf("GJK CONVEXCAST: invalid ray segment : %.4f%n", t);
+				return RAY_WONT_HIT;
+			}
+			
+			
+			
+			// move rayCurrentO by that amount
+			rayT += (1.f-rayT) * t;
+			
+			if (debug)
+				System.out.printf("GJK CONVEXCAST: we can advance ray by %.4f --> %.4f%n", t, rayT);
+			
+			rayCurrentO.x += (rayEnd.x - rayCurrentO.x) * t;
+			rayCurrentO.y += (rayEnd.y - rayCurrentO.y) * t;
+			rayCurrentO.z += (rayEnd.z - rayCurrentO.z) * t;
+			
+			// shift direction
+			computeDirection(lastDir, new Vector3(rayCurrentO, rayOrigin), RAY_MARGIN_SQUARED, false);
+			
+		} else {
+			if (debug)
+				System.out.printf("GJK CONVEXCAST: RAY START INSIDE!! @ %.4f%n", rayT);
+			
+			// VALID CRITERIA:
+			// 0 <= t <= 1
+			if (rayT > Vector3.EPSILON && rayT <= 1.0f) 
+				return RAY_HIT;
+			else
+				return RAY_START_INSIDE;
+		}
+		// gotta return still needs marching
+		return RAY_STILL_MARCHING;
+	}
+	
+	public int doConvexCast(Vector3 vA, Vector3 vB) {
+		// first, we init data
+		convexCastInit(vA, vB);
+		
+		// then we march the ray as long as it still can
+		int retVal = RAY_STILL_MARCHING;
+		do {
+			retVal = convexCastStep();
+		} while (retVal == RAY_STILL_MARCHING);
+		
+		// preview the result, decide potential action
+		if (retVal == RAY_HIT) {
+			if (debug)
+				System.out.println("CONVEXCAST: ray hit!! we can compute normal now with pts= " + points.size());
+			// now we compute shit in here
+			// first known thing is rayT
+			// next, compute the raynormal (using the normal of simplex)
+			// NOTE:theoritically the simplex would terminate with n >= 3
+			if (points.size() >= 3) {
+				// cool
+				// rayNormal
+				Vector3 ab = Vector3.tmp0;
+				Vector3 ac = Vector3.tmp1;
+				
+				CSOVertex a = points.get(0);
+				CSOVertex b = points.get(1);
+				CSOVertex c = points.get(2);
+				
+				ab.setTo(b.p.x-a.p.x, b.p.y-a.p.y, b.p.z-a.p.z);	
+				ac.setTo(c.p.x-a.p.x, c.p.y-a.p.y, c.p.z-a.p.z);
+				
+				// cross
+				Vector3.cross(ab, ac, rayhitNormal);
+				
+				// make sure it's facing the ray
+				Vector3.sub(rayEnd, rayOrigin, ab);
+				float d = Vector3.dot(ab, rayhitNormal);
+				
+				if (d < 0.0f) {
+					// flip
+					rayhitNormal.scale(-1.f);
+				}
+				
+				// normalize
+				rayhitNormal.normalize();
+				
+				// now the rayhit position
+				// use shape A's space, and offset by vA * rayT (we can also use B, same shit really)
+				// 1. compute barycentric coord
+				Vector3 bary = MathHelper.computeBarycentric(Vector3.ZERO, a.p, b.p, c.p);
+				
+				// 2. use it to interpolate along sA's coord
+				rayhitPos.setTo(
+						a.a.x * bary.x + b.a.x * bary.y + c.a.x * bary.z, 
+						a.a.y * bary.x + b.a.y * bary.y + c.a.y * bary.z, 
+						a.a.z * bary.x + b.a.z * bary.y + c.a.z * bary.z);
+				
+				// 3. offset by vA * rayT
+				rayhitPos.x += vA.x * rayT;
+				rayhitPos.y += vA.y * rayT;
+				rayhitPos.z += vA.z * rayT;
+			}
+		} 
+		
+		if (debug) 
+			System.out.println("CONVEXCAST: retval is = " + retVal);
+		
+		return retVal;
+	}
+	
+	public boolean addSupportPoint(CSOVertex v) {
+		// adding already added point means we can't get better
+		if (history.contains(v))
+			return false;
+		
+		// it's new!!
+		points.add(v);
+		history.add(v);
+		return true;
 	}
 	
 	public void addSupport(CSOVertex v) {
@@ -274,8 +1100,8 @@ public class Simplex {
 			if (triArea < Vector3.EPSILON) {
 //				System.out.println("closest to origin: degenerate simplex triangle case: " + triArea);
 			}*/
-//			return MathHelper.getClosestToTriangle(Vector3.ZERO, points.get(0).p, points.get(1).p, points.get(2).p);
-			return MathHelper.naiveClosestToTriangle(Vector3.ZERO, points.get(0).p, points.get(1).p, points.get(2).p);
+			return MathHelper.getClosestToTriangle(Vector3.ZERO, points.get(0).p, points.get(1).p, points.get(2).p);
+//			return MathHelper.naiveClosestToTriangle(Vector3.ZERO, points.get(0).p, points.get(1).p, points.get(2).p);
 		} else if (points.size() == 4) {
 			//return closest to tetrahedron
 			
@@ -286,11 +1112,10 @@ public class Simplex {
 //				System.out.println("closest to origin: degenerate simplex tetrahedron case:" + tetraVol);
 //			}
 			
-//			return MathHelper.getClosestToTetrahedron(Vector3.ZERO, points.get(0).p, points.get(1).p, 
-//					points.get(3).p, points.get(2).p);
-			
 			return MathHelper.naiveClosestToTetrahedron(Vector3.ZERO, points.get(0).p, points.get(1).p, 
 					points.get(3).p, points.get(2).p);
+			
+			// which triangle to keep? the closest one
 		}
 //		System.out.println("Whaaat!!!" + points.size());
 		return null;
@@ -391,467 +1216,73 @@ public class Simplex {
 	}
 	
 	public boolean getClosestPoint(Vector3 bA, Vector3 bB) {
-		// depending on the simplex size
-		CSOVertex a, b, c, d;
-		if (points.size() == 1) {
-//			System.out.println("point case!");
-			// simplest one
-			a = points.get(0);
+		int numP = points.size();
+		
+		// update closest
+		closestPointToOrigin = closestToOrigin();
+		
+		switch (numP) {
+		case 1:
+			CSOVertex a = points.get(0);
 			
 			bA.setTo(a.a);
 			bB.setTo(a.b);
-			
 			return true;
-		} else if (points.size() == 2) {
-//			System.out.println("line case!");
-			// calculate our fraction on the line
+		case 2:
 			a = points.get(0);
-			b = points.get(1);
-			
-			Vector3 u = new Vector3();
-			Vector3 v = new Vector3();
+			CSOVertex b = points.get(1);
+			// compute closest point interval
+			Vector3 u = Vector3.tmp0;
+			Vector3 v = Vector3.tmp1;
 			
 			Vector3.sub(closestPointToOrigin, a.p, u);
 			Vector3.sub(b.p, a.p, v);
 			
-			float uv = Vector3.dot(u, v);
-			float vv = Vector3.dot(v, v);
-			
-			if (Math.abs(vv) < Vector3.EPSILON) {
-				// parallel cuk
-				bA.setTo(a.a);
-				bB.setTo(a.b);
-				return true;
-			}
-			
-			// good number
-			uv /= vv;
-			
-			// clamp them (usually not needed)
-			if (uv <= 0) {
-				// on a
-				bA.setTo(a.a);
-				bB.setTo(a.b);
-			} else if (uv >= 1) {
-				// on b
-				bA.setTo(b.a);
-				bB.setTo(b.b);
+			float scale = Vector3.dot(u, v);
+			float det = Vector3.dot(v, v);
+			if (Math.abs(det) < Vector3.EPSILON) {
+				// segment too close, return a
+				scale = 0;
 			} else {
-				// in between
-				Vector3 v1 = a.a;
-				Vector3 v2 = b.a;
-				
-				// for A
-				bA.x = (1.0f-uv) * v1.x + uv * v2.x;
-				bA.y = (1.0f-uv) * v1.y + uv * v2.y;
-				bA.z = (1.0f-uv) * v1.z + uv * v2.z;
-				
-				// for B
-				v1 = b.b;
-				v2 = b.b;
-				
-				bB.x = (1.0f-uv) * v1.x + uv * v2.x;
-				bB.y = (1.0f-uv) * v1.y + uv * v2.y;
-				bB.z = (1.0f-uv) * v1.z + uv * v2.z;
+				scale /= det;
 			}
+			
+			// now scale = [0..1]
+			bA.setTo(
+					(1.0f-scale) * a.a.x + scale * b.a.x, 
+					(1.0f-scale) * a.a.y + scale * b.a.y, 
+					(1.0f-scale) * a.a.z + scale * b.a.z
+					);
+			bB.setTo(
+					(1.0f-scale) * a.b.x + scale * b.b.x, 
+					(1.0f-scale) * a.b.y + scale * b.b.y, 
+					(1.0f-scale) * a.b.z + scale * b.b.z
+					);
 			
 			return true;
-		} else if (points.size() == 3) {
-//			System.out.println("triangle case!");
-			// from a triangle!!
+		case 3:
 			a = points.get(0);
 			b = points.get(1);
-			c = points.get(2);
+			CSOVertex c = points.get(2);
+			Vector3 bary = MathHelper.computeBarycentric(closestPointToOrigin, a.p, b.p, c.p);
 			
-//			System.out.println("a: " + a.p.x+", "+a.p.y+", "+a.p.z);
-//			System.out.println("b: " + b.p.x+", "+b.p.y+", "+b.p.z);
-//			System.out.println("c: " + c.p.x+", "+c.p.y+", "+c.p.z);
-
-			// grab closest to it
-			/*Vector3 p0 = MathHelper.getClosestToTriangle(Vector3.ZERO, a.p, b.p, c.p);
-			Vector3 p1 = MathHelper.getClosestToLine(Vector3.ZERO, a.p, b.p, true);
-			Vector3 p2 = MathHelper.getClosestToLine(Vector3.ZERO, b.p, c.p, true);
-			Vector3 p3 = MathHelper.getClosestToLine(Vector3.ZERO, c.p, a.p, true);
+			float sum = bary.x + bary.y + bary.z;
+//			System.out.printf("closest point: bary = %.4f, %.4f, %.4f = %.4f%n", bary.x, bary.y, bary.z, sum);
 			
-			
-			Vector3 [] candidates = new Vector3[]{
-					p0, p1, p2, p3
-			};
-			Vector3 closest = p0;
-			float dist = closest.lengthSquared();
-			
-			for (int i=1; i<4; i++) {
-				float canDist = candidates[i].lengthSquared();
-				if (canDist < dist) {
-					dist = canDist;
-					closest = candidates[i];
-				}
-			}*/
-			// WAITT!!! SEE IF IT'S DEGENERATE
-			float triArea = MathHelper.calcTriangleArea(a.p, b.p, c.p);
-			
-			if (triArea < Vector3.EPSILON) {
-//				System.out.println("Simplex.getClosestPoint: degenerate triangle!! removing degenerate point...");
-				// we need to remove offending points
-				if (Vector3.distBetween(a.p, b.p) < Vector3.EPSILON) {
-					// a and b are coincident. remove one, then recurse
-					points.remove(a);
-//					System.out.println("Simplex.getClosestPoint: a and b are coincident!!");
-				} else if (Vector3.distBetween(b.p, c.p) < Vector3.EPSILON) {
-					// b and c
-					points.remove(b);
-//					System.out.println("Simplex.getClosestPoint: b and c are coincident!!");
-				} else {
-					// must be between c and a
-					points.remove(c);
-//					System.out.println("Simplex.getClosestPoint: c and a are coincident!!");
-				}
-				
-				return this.getClosestPoint(bA, bB);
-			}
-			
-			Vector3 closest = closestPointToOrigin; //MathHelper.naiveClosestToTriangle(Vector3.ZERO, a.p, b.p, c.p);
-			// compute barycentric coordinate
-			Vector3 bary = MathHelper.computeBarycentric(closest, a.p, b.p, c.p);
-			
-//			System.out.println("bary: " + bary.x+", "+bary.y+", "+bary.z);
-			
-//			System.out.println("cl: " + closest.x+ ", "+closest.y+ ", "+closest.z+ ", "+closest.length());
-//			System.out.println("p1: " + p1.x+ ", "+p1.y+ ", "+p1.z+ ", "+p1.length());
-//			System.out.println("p2: " + p2.x+ ", "+p2.y+ ", "+p2.z+ ", "+p2.length());
-//			System.out.println("p3: " + p3.x+ ", "+p3.y+ ", "+p3.z+ ", "+p3.length());
-			
-			// use it to get real coords
-			Vector3 v1, v2, v3;
-			
-			// On A
-			v1 = a.a;
-			v2 = b.a;
-			v3 = c.a;
-			
-			bA.x = v1.x * bary.x + v2.x * bary.y + v3.x * bary.z;
-			bA.y = v1.y * bary.x + v2.y * bary.y + v3.y * bary.z;
-			bA.z = v1.z * bary.x + v2.z * bary.y + v3.z * bary.z;
-			
-			// On B
-			v1 = a.b;
-			v2 = b.b;
-			v3 = c.b;
-			
-			bB.x = v1.x * bary.x + v2.x * bary.y + v3.x * bary.z;
-			bB.y = v1.y * bary.x + v2.y * bary.y + v3.y * bary.z;
-			bB.z = v1.z * bary.x + v2.z * bary.y + v3.z * bary.z;
+			bA.setTo(
+					a.a.x * bary.x + b.a.x * bary.y + c.a.x * bary.z, 
+					a.a.y * bary.x + b.a.y * bary.y + c.a.y * bary.z, 
+					a.a.z * bary.x + b.a.z * bary.y + c.a.z * bary.z
+					);
+			bB.setTo(
+					a.b.x * bary.x + b.b.x * bary.y + c.b.x * bary.z, 
+					a.b.y * bary.x + b.b.y * bary.y + c.b.y * bary.z, 
+					a.b.z * bary.x + b.b.z * bary.y + c.b.z * bary.z
+					);
 			
 			return true;
-		} else if (points.size() == 4) {
-//			System.out.println("tetrahedron case!");
-			
-//			List<CSOVertex> better = new ArrayList<>();	// we make new list, that is not degenerate
-////			
-//			// for every current points
-//			for (CSOVertex pt : points) {
-//				// if the new list is empty, just insert
-//				if (better.isEmpty())
-//					better.add(pt);
-//				else {
-//					// by default, it's safe to add
-//					boolean safeToAdd = true;
-//					// let's compare with every vertex of better list
-//					// OPTIMIZATION!! BEGIN FROM THE BACK!!
-//					for (int j = better.size()-1; j >= 0; --j) {
-//						CSOVertex pt2 = better.get(j);
-//						Vector3 dv = new Vector3(pt.p, pt2.p);
-//						if (dv.lengthSquared() < Vector3.EPSILON) {
-//							System.out.println("singularity a: " + pt.p.x + ", " + pt.p.y + ", " + pt.p.z);
-//							System.out.println("singularity b: " + pt2.p.x + ", " + pt2.p.y + ", " + pt2.p.z);
-//							
-//							safeToAdd = false;
-//							break;	// break for (EARLY OUT)
-//						}
-//					}
-//					// is it safe?
-//					if (safeToAdd)
-//						better.add(pt);
-//				}
-//			}
-//			
-//			System.out.println("Tetrahedron simplified: " + better.size());
-//			
-//			// replace
-//			this.points = better;
-//			
-//			// if this is indeed degenerate tetrahedro, recurse
-//			if (points.size() < 4) {
-//				return this.getClosestPoint(bA, bB);
-//			}
-			/*// usually this is it. gotta get closest on the tetrahedron
-			a = points.get(0);
-			b = points.get(1);
-			c = points.get(2);
-			d = points.get(3);
-			
-			// compute closest point ON THE FACE OF THE TETRAHEDRON!!! (DISCARDING ANYTHING INSIDE)
-			Vector3 c1 = MathHelper.getClosestToTriangle(Vector3.ZERO, a.p, b.p, c.p);
-			Vector3 c2 = MathHelper.getClosestToTriangle(Vector3.ZERO, b.p, c.p, d.p);
-			Vector3 c3 = MathHelper.getClosestToTriangle(Vector3.ZERO, c.p, d.p, a.p);
-			Vector3 c4 = MathHelper.getClosestToTriangle(Vector3.ZERO, a.p, b.p, d.p);
-			
-			float d1 = c1.lengthSquared();
-			float d2 = c2.lengthSquared();
-			float d3 = c3.lengthSquared();
-			float d4 = c4.lengthSquared();
-			
-			Vector3 closest = null;
-			
-			if (d1 < d2 && d1 < d3 && d1 < d4) {
-				closest = c1;
-				// face is abc
-				a = points.get(0);
-				b = points.get(1);
-				c = points.get(2);
-				
-			} else if (d2 < d1 && d2 < d3 && d2 < d4) {
-				closest = c2;
-				// face is bcd
-				a = points.get(1);
-				b = points.get(2);
-				c = points.get(3);
-			} else if (d3 < d1 && d3 < d2 && d3 < d4) {
-				closest = c3;
-				// face is cda
-				a = points.get(2);
-				b = points.get(3);
-				c = points.get(0);
-			} else {
-				closest = c4;
-				// face is abd
-				a = points.get(0);
-				b = points.get(1);
-				c = points.get(3);
-			}
-			
-			System.out.printf("abc: %.4f,  bcd: %.4f, cda: %.4f, abd: %.4f", c1.lengthSquared(), c2.lengthSquared(),
-					c3.lengthSquared(), c4.lengthSquared());
-			
-			Vector3 bary = MathHelper.computeBarycentric(closest, a.p, b.p, c.p);
-			System.out.println("bary: " + bary.x+", "+ bary.y+", "+ bary.z);
-			
-			if (bary.lengthSquared() < Vector3.EPSILON) {
-				System.out.println("DEGENERATE CASE!! FALLBACK TO LINE VS LINE");
-				
-				// check which point is degenerate, and throw them away
-				Vector3 AB = new Vector3(b.p, a.p);
-				Vector3 BC = new Vector3(c.p, b.p);
-				Vector3 CA = new Vector3(a.p, c.p);
-				
-				Vector3 lineU = null;
-				Vector3 lineV = null;
-				
-				CSOVertex va, vb;
-				
-				if (AB.lengthSquared() < Vector3.EPSILON) {
-					// AB is degenerate!!!
-					lineV = BC;
-					lineU = new Vector3(closest, b.p);
-					
-					va = b;
-					vb = c;
-				} else if (BC.lengthSquared() < Vector3.EPSILON) {
-					// BC is degenerate
-					lineV = CA;
-					lineU = new Vector3(closest, c.p);
-					
-					va = c;
-					vb = a;
-				} else {
-					// CA is degenerate
-					lineV = AB;
-					lineU = new Vector3(closest, a.p);
-					
-					va = a;
-					vb = b;
-				}
-				// compute interval
-				float uv = Vector3.dot(lineU, lineV);
-				float vv = Vector3.dot(lineV, lineV);
-				
-				// make sure it's not degenerate too
-				if (Math.abs(vv) < Vector3.EPSILON) {
-					System.out.println("SHEIIIITTT THE LINE IS DEGENERATE TOO!!! RETURNING POINT!!");
-					bA.setTo(a.a);
-					bB.setTo(a.b);
-				} else {
-					uv /= vv;
-					// no need to clamp, already clamped
-					bA.x	= va.a.x * (1.0f-uv) + vb.a.x * uv;
-					bA.y	= va.a.y * (1.0f-uv) + vb.a.y * uv;
-					bA.z	= va.a.z * (1.0f-uv) + vb.a.z * uv;
-					
-					bB.x	= va.b.x * (1.0f-uv) + vb.b.x * uv;
-					bB.y	= va.b.y * (1.0f-uv) + vb.b.y * uv;
-					bB.z	= va.b.z * (1.0f-uv) + vb.b.z * uv;
-				}
-			} else {
-				// safe to compute
-				bA.x	= bary.x * a.a.x + bary.y * b.a.x + bary.z * c.a.x;
-				bA.y	= bary.x * a.a.y + bary.y * b.a.y + bary.z * c.a.y;
-				bA.z	= bary.x * a.a.z + bary.y * b.a.z + bary.z * c.a.z;
-				
-				bB.x	= bary.x * a.b.x + bary.y * b.b.x + bary.z * c.b.x;
-				bB.y	= bary.x * a.b.y + bary.y * b.b.y + bary.z * c.b.y;
-				bB.z	= bary.x * a.b.z + bary.y * b.b.z + bary.z * c.b.z;
-			}*/
-			/*a = points.get(0);
-			b = points.get(1);
-			c = points.get(2);
-			d = points.get(3);
-			
-			
-			float volTetra = MathHelper.calcTetraVolume(a.p, b.p, c.p, d.p);
-			
-			if (Math.abs(volTetra) < Vector3.EPSILON) {
-				// this shouldn't be possible
-				System.out.println("SHEEIIIITTT DEGENERATE TETRAHEDRON!!!");
-				return false;
-			} else {
-				// non degenerate would be fine
-				System.out.println("NON DEGENERATE TETRAHEDRON!! GOOD!!");
-				
-				Quaternion bary = MathHelper.computeBarycentric(closestPointToOrigin, a.p, b.p, c.p, d.p);
-				
-				bA.x = a.a.x * bary.x + b.a.x * bary.y + c.a.x * bary.z + d.a.x * bary.w;
-				bA.y = a.a.y * bary.x + b.a.y * bary.y + c.a.y * bary.z + d.a.y * bary.w;
-				bA.z = a.a.z * bary.x + b.a.z * bary.y + c.a.z * bary.z + d.a.z * bary.w;
-				
-				bB.x = a.b.x * bary.x + b.b.x * bary.y + c.b.x * bary.z + d.b.x * bary.w;
-				bB.y = a.b.y * bary.x + b.b.y * bary.y + c.b.y * bary.z + d.b.y * bary.w;
-				bB.z = a.b.z * bary.x + b.b.z * bary.y + c.b.z * bary.z + d.b.z * bary.w;
-				
-				return true;
-			}*/
-			a = points.get(0);
-			b = points.get(1);
-			c = points.get(2);
-			d = points.get(3);
-			
-			
-			CSOVertex [][] tris = new CSOVertex[][] {
-					{a, b, c},
-					{b, c, d},
-					{c, d, a},
-					{a, b, d}
-			};	
-			
-//			String [] tri_name = new String[]{
-//					"tri ABC",
-//					"tri BCD",
-//					"tri CDA",
-//					"tri ABD"
-//			};
-			
-			int id = 0;
-			float dist = -1.0f;	// will update
-			float area = Vector3.EPSILON;
-			Vector3 closest = null;
-			for (int i=0; i<4; i++) {
-				Vector3 cl = MathHelper.naiveClosestToTriangle(Vector3.ZERO, tris[i][0].p, tris[i][1].p, 
-						tris[i][2].p);
-				float na = MathHelper.calcTriangleArea(tris[i][0].p, tris[i][1].p, tris[i][2].p);
-				float nd = cl.lengthSquared();
-				
-				// discard degenerate triangle
-				if (na < Vector3.EPSILON)
-					continue;
-				
-				if (nd < dist || dist < 0) {
-//					System.out.println("got better triangle: " + tri_name[i] + ", l:" + nd +", a:" + na);
-					dist = nd;
-					area = na;
-					id = i;
-					closest = cl;
-				}
-			}
-			// we got the good triangle. use that
-//			System.out.println("got best triangle: " + tri_name[id]);
-			
-			// compute barycentric
-			Vector3 bary = MathHelper.computeBarycentric(closest, tris[id][0].p, tris[id][1].p, tris[id][2].p);
-			
-//			System.out.println("best bary: " + bary.x+", "+bary.y+", "+bary.z);
-			
-			bA.x	= tris[id][0].a.x * bary.x + tris[id][1].a.x * bary.y + tris[id][2].a.x * bary.z; 
-			bA.y	= tris[id][0].a.y * bary.x + tris[id][1].a.y * bary.y + tris[id][2].a.y * bary.z;
-			bA.z	= tris[id][0].a.z * bary.x + tris[id][1].a.z * bary.y + tris[id][2].a.z * bary.z;
-			
-			bB.x	= tris[id][0].b.x * bary.x + tris[id][1].b.x * bary.y + tris[id][2].b.x * bary.z; 
-			bB.y	= tris[id][0].b.y * bary.x + tris[id][1].b.y * bary.y + tris[id][2].b.y * bary.z;
-			bB.z	= tris[id][0].b.z * bary.x + tris[id][1].b.z * bary.y + tris[id][2].b.z * bary.z;
-			
-			return true;
-			
-//			// must remove degenerate point
-//			List<CSOVertex> better = new ArrayList<>();	// we make new list, that is not degenerate
-//			
-//			// for every current points
-//			for (CSOVertex pt : points) {
-//				// if the new list is empty, just insert
-//				if (better.isEmpty())
-//					better.add(pt);
-//				else {
-//					// by default, it's safe to add
-//					boolean safeToAdd = true;
-//					// let's compare with every vertex of better list
-//					// OPTIMIZATION!! BEGIN FROM THE BACK!!
-//					for (int j = better.size()-1; j >= 0; --j) {
-//						CSOVertex pt2 = better.get(j);
-//						Vector3 dv = new Vector3(pt.p, pt2.p);
-//						if (dv.lengthSquared() < Vector3.EPSILON) {
-//							System.out.println("singularity a: " + pt.p.x + ", " + pt.p.y + ", " + pt.p.z);
-//							System.out.println("singularity b: " + pt2.p.x + ", " + pt2.p.y + ", " + pt2.p.z);
-//							
-//							safeToAdd = false;
-//							break;	// break for (EARLY OUT)
-//						}
-//					}
-//					// is it safe?
-//					if (safeToAdd)
-//						better.add(pt);
-//				}
-//			}
-//			
-//			System.out.println("Tetrahedron simplified: " + better.size());
-//			
-//			// replace
-//			this.points = better;
-//			
-//			// if this is indeed degenerate tetrahedro, recurse
-//			if (points.size() < 4) {
-//				return this.getClosestPoint(bA, bB);
-//			}
-//			
-//			// whoa!! a valid tetrahedron!!
-//			// simply get closest to the tetrahedron
-//			
-//			
-//			Vector3 closest = MathHelper.getClosestToTetrahedron(Vector3.ZERO, a.p, b.p, c.p, d.p);
-//			
-//			Quaternion bary = MathHelper.computeBarycentric(closest, a.p, b.p, c.p, d.p);
-//			
-//			System.out.println("valid tetra bary: " + bary.x+ ", "+ bary.y+ ", "+ bary.z+ ", "+ bary.w);
-//			
-//			// valid tetrahedron...hmm weird
-//			bA.x = a.a.x * bary.x + b.a.x * bary.y + c.a.x * bary.z + d.a.x * bary.w;
-//			bA.y = a.a.y * bary.x + b.a.y * bary.y + c.a.y * bary.z + d.a.y * bary.w;
-//			bA.z = a.a.z * bary.x + b.a.z * bary.y + c.a.z * bary.z + d.a.z * bary.w;
-//			
-//			bB.x = a.b.x * bary.x + b.b.x * bary.y + c.b.x * bary.z + d.b.x * bary.w;
-//			bB.y = a.b.y * bary.x + b.b.y * bary.y + c.b.y * bary.z + d.b.y * bary.w;
-//			bB.z = a.b.z * bary.x + b.b.z * bary.y + c.b.z * bary.z + d.b.z * bary.w;
-//			
-//			return true;
-			
-//			return true;
 		}
+		
 		return false;
 	}
 	

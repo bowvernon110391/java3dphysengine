@@ -11,7 +11,7 @@ import java.util.Map.Entry;
 
 import com.jogamp.opengl.GL2;
 
-public class Physics {
+public class Physics<V> {
 
 	public static final int TIME_UPDATE_VEL = 0;
 	public static final int TIME_REFRESH_CONTACT = 1;
@@ -92,6 +92,29 @@ public class Physics {
 		bodies.add(b);
 	}
 	
+	public void removeBody(RigidBody b) {
+		// shit. removing a body isn't as easy
+		// 1. remove from list of bodies
+		bodies.remove(b);
+		
+		// 2. remove manifold which contains b
+		Iterator iter = manifolds.entrySet().iterator();
+		while (iter.hasNext()) {
+			Map.Entry pair = (Entry) iter.next();
+			BodyPair key = (BodyPair) pair.getKey();
+			
+			if (key != null) {
+				// check if this contains our body
+				if (key.getBodyA() == b || key.getBodyB() == b) {
+					// yes, remove it
+					iter.remove();
+					// also remove it from sorted manifold
+					sortedManifolds.remove(pair.getValue());
+				}
+			}
+		}
+	}
+	
 	public void addJoint(Joint j) {
 		joints.add(j);
 	}
@@ -147,7 +170,10 @@ public class Physics {
 			@SuppressWarnings("rawtypes")
 			Map.Entry pair = (Map.Entry)iter.next();
 			BodyPair k = (BodyPair) pair.getKey();
-			if (!k.stillInProximity()) {
+			PersistentManifold m = (PersistentManifold) pair.getValue();
+			
+			// if the bodies are no longer touching and there's no speculative contacts
+			if (!k.stillInProximity() && m.specContacts.size() == 0) {
 				// remove from both list/map!!
 				sortedManifolds.remove(pair.getValue());
 				iter.remove();
@@ -158,7 +184,6 @@ public class Physics {
 				if (k.getBodyA().isSleeping() && k.getBodyB().isSleeping())
 					continue;
 				// refresh here!!
-				PersistentManifold m = (PersistentManifold) pair.getValue();
 				m.refresh();
 			}
 		}
@@ -376,10 +401,12 @@ public class Physics {
 	
 	public void narrowPhase(float dt) {
 		// for each entry, gotta find persistent cache
-		for (BodyPair p : potentialColliders) {				
+		for (BodyPair p : potentialColliders) {
+			// sleeping pairs do not need to enter narrow phase
 			if (p.getBodyA().isSleeping() && p.getBodyB().isSleeping())
 				continue;
 			
+			// grab a pair
 			PersistentManifold m = manifolds.get(p);
 			// if we cannot find, then add new
 			if (m == null) {

@@ -28,10 +28,78 @@ public class Polytope {
 	}
 	
 	// hold triangles
-	private List<EPATriangle> tris;
+	public List<EPATriangle> tris;
+	public Shape sA, sB;
+	public Vector3 posA, posB;
+	public Quaternion rotA, rotB;
+	public Vector3 cA, cB, normal, mtd;
 	
 	public Polytope(Simplex s) {
 		init(s);
+	}
+	
+	public void getClosestPoint(Vector3 pA, Vector3 pB) {
+//		if (pA != null)
+			pA.setTo(cA);
+//		if (pB != null)
+			pB.setTo(cB);
+	}
+	
+	public void getMTD(Vector3 v) {
+		if (v!= null)
+			v.setTo(mtd);
+	}
+	
+	public void getNormal(Vector3 n) {
+		if (n!=null)
+			n.setTo(normal);
+	}
+	
+	public boolean EPA() {
+		int iter = 0;
+		
+		Vector3 proj = Vector3.tmp0;
+		while (iter++ < MathHelper.EPA_MAX_ITERATION) {
+			System.out.println("EPA ITER: " + iter);
+			EPATriangle t = getClosestTriangle(Vector3.ZERO, proj);
+			
+			Vector3 dir = t.n;
+			
+			CSOVertex v = Shape.minkowskiDiff(sA, posA, rotA, sB, posB, rotB, dir);
+			float d = Vector3.dot(v.p, dir) - Vector3.dot(proj, dir);
+			
+			if (Math.abs(d) < Vector3.EPSILON) {
+				// close enough
+				Vector3 bary = MathHelper.computeBarycentric(proj, t.a.p, t.b.p, t.c.p);
+				
+				// fill in cA and cB
+				cA.setTo(
+						t.a.a.x * bary.x + t.b.a.x * bary.y + t.c.a.x * bary.z,
+						t.a.a.y * bary.x + t.b.a.y * bary.y + t.c.a.y * bary.z,
+						t.a.a.z * bary.x + t.b.a.z * bary.y + t.c.a.z * bary.z
+						);
+				
+				cB.setTo(
+						t.a.b.x * bary.x + t.b.b.x * bary.y + t.c.b.x * bary.z,
+						t.a.b.y * bary.x + t.b.b.y * bary.y + t.c.b.y * bary.z,
+						t.a.b.z * bary.x + t.b.b.z * bary.y + t.c.b.z * bary.z
+						);
+				// mtd + normal bla bla
+				mtd.setTo(proj);
+				normal.setTo(t.n);
+				normal.normalize();
+				
+				System.out.println("EPA converged at iter " + iter);
+				return true;
+			} else {
+				addPoint(v);
+			}
+		}
+		return false;
+	}
+	
+	public void reset() {
+		tris.clear();
 	}
 	
 	/**
@@ -39,8 +107,11 @@ public class Polytope {
 	 * @param s - simplex returned by GJK (must contain origin and is a tetrahedron)
 	 */
 	public void init(Simplex s) {
-		tris = new ArrayList<>();
+		tris = new ArrayList<>(4);
 		
+		// if s is null, nothing can be done
+		if (s == null)
+			return;
 		// make sure it's 4 in the beginning, or else it would fail
 		CSOVertex a = s.getSupport(0);
 		CSOVertex b = s.getSupport(1);
@@ -49,9 +120,50 @@ public class Polytope {
 		
 		// add new triangle on the way
 		tris.add(new EPATriangle(a, b, c));	// ABC
-		tris.add(new EPATriangle(d, b, a));	// DBA
-		tris.add(new EPATriangle(d, a, c));	// DAC
-		tris.add(new EPATriangle(d, c, b));	// DCB
+		// check this one, do we need to reverse?
+		EPATriangle t = tris.get(0);
+		float dot = Vector3.dot(t.n, t.a.p);
+		boolean reverse = false;
+		if (dot < 0) {
+			// reverse
+			reverse = true;
+			
+			CSOVertex tmp = t.b;
+			t.b = t.c;
+			t.c = tmp;
+			
+			// reverse normal
+			t.n.scale(-1);
+			
+//			System.out.println("Polytope REVERSAL!!");
+		}
+		
+		if (!reverse) {
+			tris.add(new EPATriangle(d, b, a));	// DBA
+			tris.add(new EPATriangle(d, a, c));	// DAC
+			tris.add(new EPATriangle(d, c, b));	// DCB
+		} else {
+//			System.out.println("Polytope CONSISTENT!!");
+			tris.add(new EPATriangle(d, a, b));	// DBA
+			tris.add(new EPATriangle(d, c, a));	// DAC
+			tris.add(new EPATriangle(d, b, c));	// DCB
+		}
+		
+		
+		// copy all data
+		sA = s.sA;
+		sB = s.sB;
+		
+		posA = s.posA;
+		posB = s.posB;
+		
+		rotA = s.rotA;
+		rotB = s.rotB;
+		
+		cA = new Vector3();
+		cB = new Vector3();
+		normal = new Vector3();
+		mtd = new Vector3();
 	}
 	
 	/**
@@ -66,7 +178,7 @@ public class Polytope {
 		// first, we gotta remove all triangles visible from our p
 		Iterator<EPATriangle> iter = tris.iterator();
 		
-		Vector3 tmp = new Vector3();
+		Vector3 tmp = Vector3.tmp0;
 		while (iter.hasNext()) {
 			EPATriangle t = iter.next();
 			
@@ -119,12 +231,12 @@ public class Polytope {
 				gl.glEnd();
 				
 //				// draw normal
-//				triCol = getColor(i);
-//				gl.glColor3f(triCol[0], triCol[1], triCol[2]);
-//				gl.glBegin(GL2.GL_LINES);
-//					gl.glVertex3f(t.mid.x, t.mid.y, t.mid.z);
-//					gl.glVertex3f(t.mid.x+t.n.x, t.mid.y+t.n.y, t.mid.z+t.n.z);
-//				gl.glEnd();
+				triCol = getColor(i);
+				gl.glColor3f(triCol[0], triCol[1], triCol[2]);
+				gl.glBegin(GL2.GL_LINES);
+					gl.glVertex3f(t.mid.x, t.mid.y, t.mid.z);
+					gl.glVertex3f(t.mid.x+t.n.x, t.mid.y+t.n.y, t.mid.z+t.n.z);
+				gl.glEnd();
 			}
 //		}
 		

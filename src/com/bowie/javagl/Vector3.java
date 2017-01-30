@@ -86,6 +86,17 @@ public class Vector3 {
 		return vInt;
 	}
 	
+	@Override
+	public boolean equals(Object arg0) {
+		Vector3 v = (Vector3)arg0;
+		
+		float vx = v.x - x;
+		float vy = v.y - y;
+		float vz = v.z - z;
+		
+		return (vx*vx+vy*vy+vz*vz) < Vector3.EPSILON;
+	}
+	
 	//equality test
 	public static boolean equal(Vector3 v1, Vector3 v2) {
 		return ( (v1.x-v2.x)*(v1.x-v2.x) + 

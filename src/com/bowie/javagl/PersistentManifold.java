@@ -18,18 +18,21 @@ public class PersistentManifold {
 	static public float DEPTH_TOLERANCE = 0.002f;
 	
 	public List<Contact> contacts;
+	public List<SpeculativeContact> specContacts;
 	public RigidBody bodyA, bodyB;
 	
 	public PersistentManifold(BodyPair p) {
 		this.bodyA = p.getBodyA();
 		this.bodyB = p.getBodyB();
 		this.contacts = new ArrayList<>();
+		this.specContacts = new ArrayList<>();
 	}
 	
 	public PersistentManifold(RigidBody bA, RigidBody bB) {
 		this.bodyA = bA;
 		this.bodyB = bB;
 		this.contacts = new ArrayList<>();
+		this.specContacts = new ArrayList<>();
 	}
 	
 	/**
@@ -37,6 +40,10 @@ public class PersistentManifold {
 	 * usually, the first thing to do in the loop
 	 */
 	public void refresh() {
+		// remove speculative contacts
+		specContacts.clear();
+		
+		// refresh persistent contact
 		Iterator<Contact> iter = contacts.iterator();
 		
 //		int numContact = contacts.size();
@@ -112,6 +119,10 @@ public class PersistentManifold {
 		return cache;
 	}
 	
+	public void addSpeculativeContact(SpeculativeContact sc) {
+		specContacts.add(sc);
+	}
+	
 	public void add(Contact nc) {
 		if (nc == null)
 			return;
@@ -156,13 +167,24 @@ public class PersistentManifold {
 		for (Contact ct : contacts) {
 			ct.preCalculate(dt, baumgarte, slop);
 		}
+		
+		// precalculate for speculative contacts
+		for (SpeculativeContact sc : specContacts) {
+			sc.preCalculate(dt, baumgarte, slop);
+		}
 	}
 	
 	public void solve() {
+		// apply speculative contacts first
+		for (SpeculativeContact sc : specContacts) {
+			sc.solve();
+		}
+		
 		// apply all impulse
 		for (Contact ct : contacts) {
 			ct.applyImpulse();
-		}
+		}		
+
 	}
 	
 	public float getHeight(int granularity) {
@@ -200,8 +222,11 @@ public class PersistentManifold {
 			contacts.remove(a);
 		
 		// if a is null, no further action possible (that means, all contacts are positive)
-		if (a == null)
+		if (a == null) {
+			System.out.println("Persistent Manifold: no deep contact -> " + contacts.size());
+			contacts.clear();
 			return;
+		}
 		// ha! got em.
 		// 2. keep the furthest from 1
 		float furthest = 0;
