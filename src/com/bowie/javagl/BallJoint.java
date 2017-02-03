@@ -30,7 +30,7 @@ public class BallJoint implements Joint {
 	}
 	
 	@Override
-	public void preCalculate(float dt, float baumgarte) {
+	public void preCalculate(float dt, float baumgarte, float slop) {
 		// update world pos
 		worldA = bodyA.toWorld(localA);
 		worldB = bodyB.toWorld(localB);

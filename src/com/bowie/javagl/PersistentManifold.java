@@ -3,6 +3,7 @@ package com.bowie.javagl;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+
 import com.jogamp.opengl.GL2;
 
 /**
@@ -15,17 +16,30 @@ import com.jogamp.opengl.GL2;
 public class PersistentManifold {
 	static public int MAX_CONTACT_SIZE = 4;
 	static public float DIST_TOLERANCE = 0.2f;
-	static public float DEPTH_TOLERANCE = 0.002f;
+	static public float DEPTH_TOLERANCE = 0.001f;
 	
 	public List<Contact> contacts;
 	public List<SpeculativeContact> specContacts;
 	public RigidBody bodyA, bodyB;
+//	public BodyPair key;
+	
+	/*@Override
+	public int hashCode() {
+		return key.hashCode();
+	}
+	
+	@Override
+	public boolean equals(Object arg0) {
+		PersistentManifold m = (PersistentManifold) arg0;
+		return key.equals(m.key);
+	}*/
 	
 	public PersistentManifold(BodyPair p) {
 		this.bodyA = p.getBodyA();
 		this.bodyB = p.getBodyB();
 		this.contacts = new ArrayList<>();
 		this.specContacts = new ArrayList<>();
+//		this.key = p;
 	}
 	
 	public PersistentManifold(RigidBody bA, RigidBody bB) {

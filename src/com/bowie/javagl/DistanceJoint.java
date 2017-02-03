@@ -32,7 +32,7 @@ public class DistanceJoint implements Joint {
 	}
 	
 	@Override
-	public void preCalculate(float dt, float baumgarte) {
+	public void preCalculate(float dt, float baumgarte, float slop) {
 		// update position
 		worldA = bodyA.toWorld(localA);
 		worldB = bodyB.toWorld(localB);

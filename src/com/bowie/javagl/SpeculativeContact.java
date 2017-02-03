@@ -39,10 +39,11 @@ public class SpeculativeContact {
 		// the impulse only remove velocity so both bodies are touching after it's applied
 		float jN = kMass * (-vn-rN);
 		
-		// do smart clamping
+//		// do smart clamping
 		float oldAccum = accum;
 		accum = Math.max(0.f, accum + jN);
 		float impulse = accum - oldAccum;
+//		float impulse = Math.max(0.f, jN);
 		
 		Vector3 j = new Vector3(normal);
 		j.scale(impulse);

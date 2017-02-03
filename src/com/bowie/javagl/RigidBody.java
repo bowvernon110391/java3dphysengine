@@ -151,6 +151,11 @@ public class RigidBody {
 			shape.render(gl, p, r);
 		}
 		
+		// draw center of mass
+		gl.glBegin(GL2.GL_POINTS);
+		gl.glColor3f(1, 1, 1);
+		gl.glVertex3f(pos.x, pos.y, pos.z);
+		gl.glEnd();
 	}
 	
 	public Matrix3 getInvInertia() {

@@ -784,6 +784,10 @@ public class MathHelper {
 				// let's calculate projections' barycentric
 				Vector3 bary = computeBarycentric(proj, t.a.p, t.b.p, t.c.p);
 				
+				if (dir.lengthSquared() < Vector3.EPSILON) {
+					System.out.println("Uh oh! worrying normal shit!!");
+				}
+				
 				return new EPAInfo(new Vector3(proj), dir.normalized(), t, bary);
 			} else {
 				// add the new support point

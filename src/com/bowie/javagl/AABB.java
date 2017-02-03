@@ -26,6 +26,30 @@ public class AABB {
 		Vector3.add(max, m, max);
 	}
 	
+	public void encompass(Vector3 a, Vector3 b, boolean init) {
+		// this will try to encompass both vectors
+		if (init) {
+			// this means aabb is unitialized
+			min.x	= Math.min(a.x, b.x);
+			min.y	= Math.min(a.y, b.y);
+			min.z	= Math.min(a.z, b.z);
+			
+			max.x	= Math.max(a.x, b.x);
+			max.y	= Math.max(a.y, b.y);
+			max.z	= Math.max(a.z, b.z);
+		} else {
+			// this means aabb is already initialized, 
+			// so we only need to expand when necessary
+			min.x	= Math.min(min.x, Math.min(a.x, b.x));
+			min.y	= Math.min(min.y, Math.min(a.y, b.y));
+			min.z	= Math.min(min.z, Math.min(a.z, b.z));
+			
+			max.x	= Math.max(max.x, Math.max(a.x, b.x));
+			max.y	= Math.max(max.y, Math.max(a.y, b.y));
+			max.z	= Math.max(max.z, Math.max(a.z, b.z));
+		}
+	}
+	
 	/**
 	 * grow - grow the AABB by a scalar d
 	 * @param d	- how much to expand

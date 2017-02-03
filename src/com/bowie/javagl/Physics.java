@@ -4,14 +4,17 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import com.jogamp.opengl.GL2;
 
-public class Physics<V> {
+public class Physics {
 
 	public static final int TIME_UPDATE_VEL = 0;
 	public static final int TIME_REFRESH_CONTACT = 1;
@@ -144,8 +147,6 @@ public class Physics<V> {
 	}
 	
 	public void sortContacts() {
-		// clear them
-		
 		// sort them
 		try {
 			Collections.sort(sortedManifolds, new Comparator<PersistentManifold>() {
@@ -162,8 +163,7 @@ public class Physics<V> {
 	}
 	
 	public void refreshContacts() {
-		// here we should be removing untouching bodies entry pair (persistent manifold)
-		
+		// here we should be removing untouching bodies entry pair (persistent manifold)		
 		Iterator<Entry<BodyPair, PersistentManifold>> iter = manifolds.entrySet().iterator();
 		while (iter.hasNext()) {
 			// are the bodies still touching?
@@ -173,7 +173,7 @@ public class Physics<V> {
 			PersistentManifold m = (PersistentManifold) pair.getValue();
 			
 			// if the bodies are no longer touching and there's no speculative contacts
-			if (!k.stillInProximity() && m.specContacts.size() == 0) {
+			if (!k.stillInProximity() && m.specContacts.size() < 1) {
 				// remove from both list/map!!
 				sortedManifolds.remove(pair.getValue());
 				iter.remove();
@@ -397,6 +397,18 @@ public class Physics<V> {
 			}
 		} // for loop
 		
+		// remove duplicate pair (a-b) == (b-a)
+		Set<BodyPair> potentialNoDups = new HashSet<>(potentialColliders);
+		
+		// compare for giggles
+//		System.out.printf("Naive, NoDup : %d, %d%n", potentialColliders.size(), potentialNoDups.size());
+		
+		// gotta correct shit?
+		potentialColliders.clear();
+		potentialColliders.addAll(potentialNoDups);
+		
+		// gotta get
+//		System.out.println("Potential pair: " + potentialColliders.size());
 	}
 	
 	public void narrowPhase(float dt) {
@@ -457,7 +469,7 @@ public class Physics<V> {
 		
 		// now for joints
 		for (Joint j : joints) {
-			j.preCalculate(dt, baumgarte);
+			j.preCalculate(dt, baumgarte, slop);
 		}
 		
 	}
@@ -554,5 +566,16 @@ public class Physics<V> {
 
 	public void setGravity(Vector3 gravity) {
 		this.gravity = gravity;
+	}
+	
+	public void grabPotentialColliders(AABB bbox, ArrayList<RigidBody> bb) {
+		// brute force (O(n))
+		for (RigidBody b : bodies) {
+			if (bbox.overlap(b.getBbox())) {
+				bb.add(b);
+//				System.out.println("adding bodies++");
+			}
+				
+		}
 	}
 }

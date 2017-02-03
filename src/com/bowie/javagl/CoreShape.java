@@ -39,7 +39,7 @@ public class CoreShape extends Shape {
 	@Override
 	public Vector3 supportPoint(Vector3 worldDir, Vector3 worldPos,
 			Quaternion worldOri) {
-		return innerShape.supportPoint(worldDir, worldPos, worldOri);
+		return outerShape.supportPoint(worldDir, worldPos, worldOri);
 	}
 
 	@Override

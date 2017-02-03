@@ -17,8 +17,11 @@ public class BodyPair {
 	public boolean equals(Object arg0) {
 		BodyPair p = (BodyPair)arg0;
 		
-		return p.bodyA == bodyA && p.bodyB == bodyB || 
-				p.bodyA.getId() == bodyA.getId() && p.bodyB.getId() == bodyB.getId();
+		return 	(p.bodyA == bodyA && p.bodyB == bodyB) || 
+				(p.bodyA.getId() == bodyA.getId() && p.bodyB.getId() == bodyB.getId()) ||
+				(p.bodyA == bodyB && p.bodyB == bodyA) ||
+				(p.bodyA.getId() == bodyB.getId() && p.bodyB.getId() == bodyA.getId()) ||
+				(arg0 == this);
 	}
 	
 	@Override

@@ -25,7 +25,7 @@ public class WorldPinJoint implements Joint {
 	}
 	
 	@Override
-	public void preCalculate(float dt, float baumgarte) {
+	public void preCalculate(float dt, float baumgarte, float slop) {
 		// update body position?
 		bodyWorldPos = body.toWorld(bodyLocalPos);
 		

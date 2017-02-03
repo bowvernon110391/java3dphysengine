@@ -1,6 +1,8 @@
 package com.bowie.javagl;
 
 public class ConvexShapeContactGenerator implements ContactGenerator {
+	private static final boolean debug = false;
+	
 	public Simplex simp;
 	public Polytope poly;
 	
@@ -76,9 +78,7 @@ public class ConvexShapeContactGenerator implements ContactGenerator {
 		// ccd is always performed on continuous body regardless of discrete cd result
 		if (performCCD) {
 			// we only make sure it's between a or b
-			if (bA.isContinuous()) {
-				System.out.println("Body A is continuous!!");
-				
+			if (bA.isContinuous()) {				
 				// we'll make body B as our "target"
 				simp.sA = sB;
 				simp.posA = posB;
@@ -106,19 +106,17 @@ public class ConvexShapeContactGenerator implements ContactGenerator {
 					Vector3.sub(rS, simp.rayhitPos, pN);
 					float dN = Vector3.dot(pN, simp.rayhitNormal);
 					
-					System.out.printf("CCD: dn = %.4f, toi = %.4f%n", dN, simp.rayT);
+					if (debug)
+						System.out.printf("A CCD: dn = %.4f, toi = %.4f%n", dN, simp.rayT);
 					
 					// add speculative contact
 					SpeculativeContact sc = new SpeculativeContact(dN, simp.rayhitNormal, simp.rayT, bA, bB);
 					m.addSpeculativeContact(sc);
 					nc++;
-				} else {
-					System.out.println("But rayhit test = " + retVal);
 				}
 			}
 			if (bB.isContinuous()) {
 				// also perform similar test
-				System.out.println("Body B is continuous!!");
 				
 				// we'll make body A as our "target"
 				simp.sA = sA;
@@ -147,14 +145,13 @@ public class ConvexShapeContactGenerator implements ContactGenerator {
 					Vector3.sub(rS, simp.rayhitPos, pN);
 					float dN = Vector3.dot(pN, simp.rayhitNormal);
 					
-					System.out.printf("CCD: dn = %.4f, toi = %.4f%n", dN, simp.rayT);
+					if (debug)
+						System.out.printf("B CCD: dn = %.4f, toi = %.4f%n", dN, simp.rayT);
 					
 					// add speculative contact (reverse body position)
 					SpeculativeContact sc = new SpeculativeContact(dN, simp.rayhitNormal, simp.rayT, bB, bA);
 					m.addSpeculativeContact(sc);
 					nc++;
-				} else {
-					System.out.println("But rayhit test = " + retVal);
 				}
 			}
 		}

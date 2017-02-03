@@ -1,6 +1,7 @@
 package com.bowie.javagl;
 
 public class CoreShapesContactGenerator implements ContactGenerator {
+	private static final boolean debug = false;
 	
 	public static int gjkCount = 0;
 	public static int epaCount = 0;
@@ -130,7 +131,8 @@ public class CoreShapesContactGenerator implements ContactGenerator {
 		if (bA.isContinuous() || bB.isContinuous()) {
 			// we only make sure it's between a or b
 			if (bA.isContinuous()) {
-				System.out.println("Body A is continuous!!");
+				if (debug)
+					System.out.println("Body A is continuous!!");
 				
 				// we'll make body B's outer shape as our "target"
 				simp.sA = ((CoreShape)sB).outerShape;
@@ -159,19 +161,22 @@ public class CoreShapesContactGenerator implements ContactGenerator {
 					Vector3.sub(rS, simp.rayhitPos, pN);
 					float dN = Vector3.dot(pN, simp.rayhitNormal);
 					
-					System.out.printf("CCD: dn = %.4f, toi = %.4f%n", dN, simp.rayT);
+					if (debug)
+						System.out.printf("CCD: dn = %.4f, toi = %.4f%n", dN, simp.rayT);
 					
 					// add speculative contact
 					SpeculativeContact sc = new SpeculativeContact(dN, simp.rayhitNormal, simp.rayT, bA, bB);
 					m.addSpeculativeContact(sc);
 					nc++;
 				} else {
-					System.out.println("But rayhit test = " + retVal);
+					if (debug)
+						System.out.println("But rayhit test = " + retVal);
 				}
 			}
 			if (bB.isContinuous()) {
 				// also perform similar test
-				System.out.println("Body B is continuous!!");
+				if (debug)
+					System.out.println("Body B is continuous!!");
 				
 				// we'll make body A as our "target"
 				simp.sA = ((CoreShape)sA).outerShape;
@@ -200,14 +205,16 @@ public class CoreShapesContactGenerator implements ContactGenerator {
 					Vector3.sub(rS, simp.rayhitPos, pN);
 					float dN = Vector3.dot(pN, simp.rayhitNormal);
 					
-					System.out.printf("CCD: dn = %.4f, toi = %.4f%n", dN, simp.rayT);
+					if (debug)
+						System.out.printf("CCD: dn = %.4f, toi = %.4f%n", dN, simp.rayT);
 					
 					// add speculative contact (reverse body position)
 					SpeculativeContact sc = new SpeculativeContact(dN, simp.rayhitNormal, simp.rayT, bB, bA);
 					m.addSpeculativeContact(sc);
 					nc++;
 				} else {
-					System.out.println("But rayhit test = " + retVal);
+					if (debug)
+						System.out.println("But rayhit test = " + retVal);
 				}
 			}
 		}
