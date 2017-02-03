@@ -3,6 +3,7 @@ package com.bowie.javagl;
 import java.util.ArrayList;
 
 import com.jogamp.opengl.GL2;
+import com.sun.xml.internal.bind.v2.runtime.Name;
 
 /**
  * This class encompass a set of wheel for a vehicle
@@ -74,6 +75,14 @@ public class WheelSet implements SimForce, Joint {
 		// then, we gather all bodies
 		ArrayList<RigidBody> bodies = new ArrayList<>();
 		
+		// for various reusage
+		Vector3 r1 = new Vector3();
+		Vector3 r2 = new Vector3();
+		Vector3 rn = new Vector3();
+		Matrix3 invIA = null;
+		Matrix3 invIB = null;
+		float invMass = 0.0f;
+		
 		if (world != null) {
 			// make sure world is accessible
 			world.grabPotentialColliders(bbox, bodies);
@@ -82,6 +91,10 @@ public class WheelSet implements SimForce, Joint {
 			// now we gotta update each wheel's data
 			for (RayWheel w : wheels) {
 				// let's update our position here
+				// apply torque here
+				float angAccel = w.wheelTorque * w.wheelInvInertia;
+				w.wheelAngVel += angAccel * dt;
+				// update position (for rendering)
 				w.wheelAngPos += w.wheelAngVel * dt;
 				// first, move last T
 				w.lastT = w.rayT;
@@ -133,8 +146,10 @@ public class WheelSet implements SimForce, Joint {
 				w.absWheelPos.y -= w.absRayDir.y * w.wheelRadius;
 				w.absWheelPos.z -= w.absRayDir.z * w.wheelRadius;
 				
+				// set default data
 				// calculate position error
 				w.posError = (1.0f - w.rayT) * ( w.suspensionLength + w.wheelRadius );
+				w.massN = 0.0f;
 				
 				// compute rest of data
 				if (w.groundObj != null) {
@@ -149,6 +164,89 @@ public class WheelSet implements SimForce, Joint {
 					
 					// scale position error
 					w.posError *= -Vector3.dot(w.absRayDir, w.rayHitNormal);
+					// allow small slop
+					w.posError = Math.max(w.posError - 0.03f, 0.0f);
+					
+					// calculate velocity along normal
+					float vN = (w.lastT-w.rayT) * (w.suspensionLength+w.wheelRadius);
+					Vector3 vNorm = new Vector3(chassis.getVelWS(w.rayHitPos), w.groundObj.getVelWS(w.rayHitPos));
+					float vN2 = -Vector3.dot(vNorm, w.rayHitNormal);
+					
+//					System.out.printf("naive, real: %.4f, %.4f%n", vN, vN2);
+					
+					
+					// refine normal mass
+					Vector3.sub(w.rayHitPos, chassis.getPos(), r1);
+					Vector3.sub(w.rayHitPos, w.groundObj.getPos(), r2);
+					invIA = chassis.getWorldInvInertia();
+					invIB = w.groundObj.getWorldInvInertia();
+					
+					// calculating effective mass (Normal)
+					invMass = chassis.getInvMass() + w.groundObj.getInvMass();
+					
+					Vector3.cross(r1, w.rayHitNormal, rn);
+					Vector3.cross(rn, r1, rn);
+					invIA.transformVector3(rn, rn);
+					invMass += Vector3.dot(w.rayHitNormal, rn);
+					
+					Vector3.cross(r2, w.rayHitNormal, rn);
+					Vector3.cross(rn, r2, rn);
+					invIB.transformVector3(rn, rn);
+					invMass += Vector3.dot(w.rayHitNormal, rn);
+					
+					w.massN = invMass > 0.0f ? 1.0f / invMass : 0.0f;
+					
+					// apply our force here
+					float k = (w.kStrength) * w.massN / (dt * dt);
+					float d = (w.kDampRatio) * w.massN / (dt);
+					
+					float fSuspensionMag = ( k * w.posError + d * (vN2) );
+					Vector3 fSuspension = new Vector3(w.rayHitNormal);
+					fSuspension.scale(fSuspensionMag);
+					
+					chassis.applyForce(fSuspension, w.rayHitPos);
+					w.groundObj.applyForce(fSuspension.inverse(), w.rayHitPos);
+					
+					// store this as pN (for limiting friction)
+					w.accumN = fSuspensionMag *  1.4f * dt;
+					
+					// also apply torque
+					// torque = r x F
+					// F = torque / r
+					float fForwardMag = -w.wheelTorque / w.wheelRadius;
+					Vector3 fForward = new Vector3(w.rayHitForward);
+					fForward.scale(fForwardMag);
+					w.wheelTorque = 0;//reset
+					
+					chassis.applyForce(fForward, w.rayHitPos);
+					w.groundObj.applyForce(fForward.inverse(), w.rayHitPos);
+					
+					// calculate effective mass (Side)
+					invMass = chassis.getInvMass() + w.groundObj.getInvMass();
+					
+					Vector3.cross(r1, w.rayHitSide, rn);
+					Vector3.cross(rn, r1, rn);
+					invIA.transformVector3(rn, rn);
+					invMass += Vector3.dot(rn, w.rayHitSide);
+					
+					Vector3.cross(r2, w.rayHitSide, rn);
+					Vector3.cross(rn, r2, rn);
+					invIB.transformVector3(rn, rn);
+					invMass += Vector3.dot(rn, w.rayHitSide);
+					
+					w.massSide = invMass > 0.0f ? 1.0f / invMass : 0.0f;
+					
+					// test if we should use which max friction
+					Vector3 vGround = new Vector3(w.getVelWS(chassis, w.absWheelPos), w.groundObj.getVelWS(w.rayHitPos));
+//					Vector3 vGround = new Vector3(w.getVelWS(chassis, w.rayHitPos), w.groundObj.getVelWS(w.rayHitPos));
+					float pT = -Vector3.dot(vGround, w.rayHitSide) * w.massSide;
+					
+					w.gamma = Math.abs(fSuspensionMag) * w.frictionS * dt;
+					if (w.name == "FR" || w.name == "FL") {
+						System.out.printf("%s | susp fric sta dyn : %.4f %.4f %.4f %.4f%n", 
+								w.name, fSuspensionMag, pT, fSuspensionMag * w.frictionS, fSuspensionMag * w.frictionD);
+					}
+					
 				}
 				
 			}
@@ -163,78 +261,55 @@ public class WheelSet implements SimForce, Joint {
 	
 	public void debugDraw(GL2 gl, float dt) {
 		for (RayWheel w : wheels) {
-			w.debugDraw(gl, dt);
+			w.debugDraw(gl, chassis, dt);
 		}
 		
 		// draw bounding box
-//		bbox.debugDraw(gl);
+//		bbox.debugDraw(gl); 
 	}
 
 	@Override
 	public void preCalculate(float dt, float baumgarte, float slop) {
-		for (RayWheel w : wheels) {
-			// gotta precalculate stuffs
-			w.massN = 0;
-			
-			if (w.groundObj != null) {
-				// collide, compute contact impulse
-				// the beta term
-				w.beta = Math.max(w.posError - slop, 0) * baumgarte / dt;
-				
-				// term
-				Vector3 r1 = new Vector3(w.rayHitPos, chassis.getPos());
-				Vector3 r2 = new Vector3(w.rayHitPos, w.groundObj.getPos());
-				Vector3 rn = new Vector3();
-				
-				Matrix3 invI1 = chassis.getWorldInvInertia();
-				Matrix3 invI2 = w.groundObj.getWorldInvInertia();
-				
-				// the mass
-				float invMass = chassis.getInvMass() + w.groundObj.getInvMass();
-				
-				Vector3.cross(r1, w.rayHitNormal, rn);
-				Vector3.cross(rn, r1, rn);
-				invI1.transformVector3(rn, rn);
-				invMass += Vector3.dot(rn, w.rayHitNormal);
-				
-				Vector3.cross(r2, w.rayHitNormal, rn);
-				Vector3.cross(rn, r2, rn);
-				invI2.transformVector3(rn, rn);
-				invMass += Vector3.dot(rn, w.rayHitNormal);
-				
-				w.massN = invMass > 0.0f ? 1.0f / invMass : 0.0f;
-				
-				// let's compute gamma and beta				
-				// let's also apply accumulated impulse
-				Vector3 j = new Vector3(w.rayHitNormal);
-				j.scale(w.accumN);
-				
-				chassis.applyImpulse(j, w.rayHitPos);
-				w.groundObj.applyImpulse(j.inverse(), w.rayHitPos);
-			}
-		}
+		
 	}
 
 	@Override
 	public void solve() {
+		int i = 0;
 		for (RayWheel w : wheels) {
-			// gotta apply shit here
+			i++;
 			if (w.groundObj != null) {
-				Vector3 vel = new Vector3(chassis.getVelWS(w.rayHitPos), w.groundObj.getVelWS(w.rayHitPos));
+				// we only have to deal with friction (side friction)
+				Vector3 vel = new Vector3(w.getVelWS(chassis, w.absWheelPos), w.groundObj.getVelWS(w.rayHitPos));
+//				Vector3 vel = new Vector3(chassis.getVelWS(w.rayHitPos), w.groundObj.getVelWS(w.rayHitPos));
 				
-				float pN = (-Vector3.dot(vel, w.rayHitNormal)  + w.beta) * w.massN;
+				float fSideMag = -(Vector3.dot(vel, w.rayHitSide)) * w.massSide;
 				
-				// let's try accumulated
-				float dpN = w.accumN;
-				w.accumN = Math.max(w.accumN + pN, 0.0f);
-				pN = w.accumN - dpN;
+				float maxFriction = w.gamma;
 				
-				Vector3 j = new Vector3(w.rayHitNormal);
-				j.scale(pN);
+//				if (Math.abs(fSideMag) > maxFrictionS) {
+//					maxFriction = maxFrictionD;
+//					
+////					System.out.printf("%s | using dynamic friction!%n", w.name);
+//				}
+				
+//				System.out.printf("%s | maxS, maxD, RAW, fric: %.4f %.4f %.4f %.4f%n", w.name, maxFrictionS, maxFrictionD, w.accumN, fSideMag);
+				fSideMag = MathHelper.clamp(fSideMag, -maxFriction, maxFriction);
+				
+				Vector3 j = new Vector3(w.rayHitSide);
+				j.scale(fSideMag);
 				
 				chassis.applyImpulse(j, w.rayHitPos);
 				w.groundObj.applyImpulse(j.inverse(), w.rayHitPos);
+				
+				// calculate angular velocity of the wheel
+				// only do this when wheel is not locked (brake)
+				Vector3.sub(chassis.getVelWS(w.rayHitPos), w.groundObj.getVelWS(w.rayHitPos), vel);
+				float vForward = Vector3.dot(w.rayHitForward, vel);
+				
+				w.wheelAngVel = vForward / w.wheelRadius;
 			}
+			
 		}
 	}
 

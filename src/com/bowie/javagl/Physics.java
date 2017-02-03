@@ -191,6 +191,11 @@ public class Physics {
 	}
 	
 	public void applyAllForces(float dt) {
+		// apply gravity here
+		for (RigidBody b : bodies) {
+			if (!b.isFixed())
+				b.applyGravity(gravity);
+		}
 		// first, simulate all forces
 		
 		for (SimForce f : forces) {
@@ -201,10 +206,6 @@ public class Physics {
 	public void updateVelocity(float dt) {
 
 		for (RigidBody b : bodies) {
-			// apply gravity here (if body is not fixed)
-			if (!b.isFixed())
-				b.applyGravity(gravity);
-			
 			b.updateVelocity(dt);
 			b.updateBBox(dt);
 			b.clearForces();

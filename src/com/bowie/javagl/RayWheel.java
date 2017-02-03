@@ -6,6 +6,7 @@ import com.jogamp.opengl.GL2;
 
 public class RayWheel {
 	// basic data
+	public String name;				// for debugging purpose
 	// local data
 	private Vector3 localRayStart;		// suspension position (in local frame)
 	private Vector3 localRight;			// local right vector (in local frame)
@@ -28,6 +29,7 @@ public class RayWheel {
 	public RigidBody groundObj;			// what did we hit?
 	
 	// another dynamic data
+	public float wheelTorque;		// torque (from engine)
 	public float wheelAngPos;		// the wheel angular position (mostly for rendering purpose)
 	public float wheelAngVel;		// the wheel angular velocity (mostly for rendering purpose)
 	public float wheelInvMass;		// the inverse mass
@@ -122,6 +124,11 @@ public class RayWheel {
 		return this;
 	}
 	
+	public RayWheel setName(String sz) {
+		this.name = sz;
+		return this;
+	}
+	
 	public Vector3 getVelWS(RigidBody c, Vector3 wp) {
 		Vector3 vel = c.getVelWS(wp);
 		
@@ -152,6 +159,10 @@ public class RayWheel {
 			rad += add;
 		}
 		gl.glEnd();
+	}
+	
+	public void applyTorque(float torque) {
+		wheelTorque += torque;
 	}
 	
 	public void calcAbsData(Vector3 chassisPos, Quaternion chassisRot) {
@@ -190,27 +201,43 @@ public class RayWheel {
 	// gotta feed data
 	
 	// debug render function
-	public void debugDraw(GL2 gl, float dt) {
+	public void debugDraw(GL2 gl, RigidBody chassis, float dt) {
 		// we don't draw the wheel cylinder yet
 		// draw start, end, and current hit
 		
 		gl.glBegin(GL2.GL_POINTS);
 		
+		// compute render data
+		float rL = suspensionLength + wheelRadius;
+		Vector3 absRS = chassis.toWorld(localRayStart);
+		Vector3 absRD = new Vector3();
+		chassis.getRot().transformVector(localRayDir, absRD);
+		Vector3 absRE = new Vector3(
+				absRS.x + absRD.x * rL,
+				absRS.y + absRD.y * rL,
+				absRS.z + absRD.z * rL
+				);
+		Vector3 absWP = new Vector3(
+				absRE.x + absRD.x * -wheelRadius,
+				absRE.y + absRD.y * -wheelRadius,
+				absRE.z + absRD.z * -wheelRadius
+				);
+		
 		// ray start
 		gl.glColor3f(1, 0, 0);
-		gl.glVertex3f(absRayStart.x, absRayStart.y, absRayStart.z);
+		gl.glVertex3f(absRS.x, absRS.y, absRS.z);
 			
 		// ray end
 		gl.glColor3f(0, 0, 1);
-		gl.glVertex3f(absRayEnd.x, absRayEnd.y, absRayEnd.z);
+		gl.glVertex3f(absRE.x, absRE.y, absRE.z);
 		
 		// in between (if we collide)
 		if (groundObj != null) {
 			gl.glColor3f(0, 1, 0);
 			gl.glVertex3f(
-					absRayStart.x * (1.f-rayT) + absRayEnd.x * rayT, 
-					absRayStart.y * (1.f-rayT) + absRayEnd.y * rayT, 
-					absRayStart.z * (1.f-rayT) + absRayEnd.z * rayT
+					absRS.x * (1.f-rayT) + absRE.x * rayT, 
+					absRS.y * (1.f-rayT) + absRE.y * rayT, 
+					absRS.z * (1.f-rayT) + absRE.z * rayT
 					);
 		}
 		
@@ -222,44 +249,44 @@ public class RayWheel {
 		Vector3.cross(absRight, absRayDir, absRayZ);
 		
 		Matrix4 m = new Matrix4();
-		m.setPosition(absWheelPos);
+		m.setPosition(absWP);
 		m.setRotation(absRight.normalized(), absRayDir.inverse(), absRayZ.normalized());
 		
 		gl.glPushMatrix();
 		gl.glMultMatrixf(m.m, 0);
 		// rotate along the angular position
 		gl.glRotatef((float) Math.toDegrees(wheelAngPos), 1, 0, 0);
-//		drawWheel(gl, wheelRadius, 8);
+		drawWheel(gl, wheelRadius, 16);
 		gl.glPopMatrix();
 		
 		// draw the ray
 		gl.glBegin(GL2.GL_LINES);
 		// ray start
 		gl.glColor3f(1, 0, 0);
-		gl.glVertex3f(absRayStart.x, absRayStart.y, absRayStart.z);
+		gl.glVertex3f(absRS.x, absRS.y, absRS.z);
 			
 		// ray end
 		gl.glColor3f(0, 0, 1);
-		gl.glVertex3f(absRayEnd.x, absRayEnd.y, absRayEnd.z);
+		gl.glVertex3f(absRE.x, absRE.y, absRE.z);
 		
-		// draw side slip friction
+		// draw side slip friction dir
 		float disp = wheelThickness * .5f;
 		
 		gl.glColor3f(1, .2f, 0.f);
-		gl.glVertex3f(absRayEnd.x-absRight.x * disp, 
-				absRayEnd.y-absRight.y * disp, 
-				absRayEnd.z-absRight.z * disp);
+		gl.glVertex3f(absRE.x-absRight.x * disp, 
+				absRE.y-absRight.y * disp, 
+				absRE.z-absRight.z * disp);
 		gl.glColor3f(1, .8f, 0.f);
-		gl.glVertex3f(absRayEnd.x+absRight.x * disp, 
-				absRayEnd.y+absRight.y * disp, 
-				absRayEnd.z+absRight.z * disp);
+		gl.glVertex3f(absRE.x+absRight.x * disp, 
+				absRE.y+absRight.y * disp, 
+				absRE.z+absRight.z * disp);
 		
 		// draw forward vector
 		if (groundObj != null) {
 			Vector3 tmp = Vector3.tmp0;
-			tmp.setTo(absRayStart.x * (1.f-rayT) + absRayEnd.x * rayT, 
-					absRayStart.y * (1.f-rayT) + absRayEnd.y * rayT, 
-					absRayStart.z * (1.f-rayT) + absRayEnd.z * rayT);
+			tmp.setTo(absRS.x * (1.f-rayT) + absRE.x * rayT, 
+					absRS.y * (1.f-rayT) + absRE.y * rayT, 
+					absRS.z * (1.f-rayT) + absRE.z * rayT);
 			
 			gl.glColor3f(1, 1, 1);
 			gl.glVertex3f(

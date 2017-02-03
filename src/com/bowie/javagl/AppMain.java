@@ -56,8 +56,8 @@ public class AppMain {
 	private boolean useCoreShape = false;
 	
 	private float targetSteer = .0f;
-	private float maxSteer = (float) Math.toRadians(50);	// 50 degree maximum
-	private float steerStrength = .7f;
+	private float maxSteer = (float) Math.toRadians(30);	// 50 degree maximum
+	private float steerStrength = .2f;
 	private float currSteer = .0f;
 	
 	private boolean steerRight = false;
@@ -93,6 +93,8 @@ public class AppMain {
 //			boolean success = MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, res.sB, res.posB, res.rotB,
 //					new Vector3(1,0,0), res.simp);
 //		}
+		float worldSize = 50.0f;
+		
 		world.reset();
 		
 		Vector3 [] cylinder_vertex = new Vector3[] {
@@ -180,11 +182,11 @@ public class AppMain {
 			box2 = new Box(1.5f, 1.f, 1.75f);
 			
 			
-			ybox = new Box(16, 1, 16);
-			xbox = new Box(1, 16, 16);
-			zbox = new Box(16, 16, 1);
+			ybox = new Box(worldSize, 1, worldSize);
+			xbox = new Box(1, worldSize, worldSize);
+			zbox = new Box(worldSize, worldSize, 1);
 			
-			carChassis = new Box(1.5f, .8f, 2.5f);
+			carChassis = new Box(1.5f, .5f, 2.75f);
 		} else {
 			// core version
 			box1 = new CoreShape(new Box(1, .75f, 1.25f), .1f);
@@ -193,11 +195,11 @@ public class AppMain {
 			box2 = new CoreShape(new Box(1.5f, 1.f, 1.75f), .1f);
 			
 			
-			ybox = new CoreShape(new Box(16, 1, 16), .1f);
-			xbox = new CoreShape(new Box(1, 16, 16), .1f);
-			zbox = new CoreShape(new Box(16, 16, 1), .1f);
+			ybox = new CoreShape(new Box(worldSize, 1, worldSize), .1f);
+			xbox = new CoreShape(new Box(1, worldSize, worldSize), .1f);
+			zbox = new CoreShape(new Box(worldSize, worldSize, 1), .1f);
 			
-			carChassis = new CoreShape(new Box(1.5f, .8f, 2.5f), .2f);
+			carChassis = new CoreShape(new Box(1.5f, .5f, 2.75f), .2f);
 		}
 		
 		
@@ -220,38 +222,42 @@ public class AppMain {
 		
 		// front left
 		w = new RayWheel(5.f, .25f, .25f)
-			.setFriction(.94f, .2f)
-			.setSuspensionLength(.5f)
+			.setFriction(.5f, .1f)
+			.setSuspensionLength(.15f)
 			.setRayDir(new Vector3(.0f, -1, .0f))
-			.setRayStart(new Vector3(.64f, -.1f, 1.f))
-			.setConstant(.28f, .1f, .5f);
+			.setRayStart(new Vector3(.75f, -.1f, 1.f))
+			.setConstant(.28f, .15f, .13f)
+			.setName("FL");
 		wheels.addWheel(w);
 		
 		// front right
 		w = new RayWheel(5.f, .25f, .25f)
-			.setFriction(.94f, .2f)
-			.setSuspensionLength(.5f)
+			.setFriction(.5f, .1f)
+			.setSuspensionLength(.15f)
 			.setRayDir(new Vector3(-.0f, -1, .0f))
-			.setRayStart(new Vector3(-.64f, -.1f, 1.f))
-			.setConstant(.28f, .1f, .5f);
+			.setRayStart(new Vector3(-.75f, -.1f, 1.f))
+			.setConstant(.28f, .15f, .13f)
+			.setName("FR");
 		wheels.addWheel(w);
 		
 		// back left
-		w = new RayWheel(5.f, .25f, .25f)
-			.setFriction(.4f, .2f)
-			.setSuspensionLength(.5f)
+		w = new RayWheel(5.f, .35f, .25f)
+			.setFriction(.5f, .1f)
+			.setSuspensionLength(.15f)
 			.setRayDir(new Vector3(.0f, -1, 0))
-			.setRayStart(new Vector3(.64f, -.1f, -1.f))
-			.setConstant(.28f, .1f, .5f);
+			.setRayStart(new Vector3(.75f, -.0f, -1.f))
+			.setConstant(.28f, .15f, .07f)
+			.setName("BL");
 		wheels.addWheel(w);
 		
 		// back right
-		w = new RayWheel(5.f, .25f, .25f)
-			.setFriction(.4f, .2f)
-			.setSuspensionLength(.5f)
+		w = new RayWheel(5.f, .35f, .25f)
+			.setFriction(.5f, .1f)
+			.setSuspensionLength(.15f)
 			.setRayDir(new Vector3(-.0f, -1, 0))
-			.setRayStart(new Vector3(-.64f, -.1f, -1.f))
-			.setConstant(.28f, .1f, .5f);
+			.setRayStart(new Vector3(-.75f, -.0f, -1.f))
+			.setConstant(.28f, .15f, .07f)
+			.setName("BR");
 		wheels.addWheel(w);
 		
 		// add wheelset + chassis to engine
@@ -272,7 +278,7 @@ public class AppMain {
 		// left wall
 		bA = new RigidBody(-1.0f, xbox);
 		bA.setFriction(.4f);
-		bA.setPos(new Vector3(-8.f, 5.5f, 0));
+		bA.setPos(new Vector3(-worldSize * .5f, 5.5f, 0));
 		bA.setFixed(true);
 		bA.setRestitution(.5f);
 		
@@ -281,7 +287,7 @@ public class AppMain {
 		// right wall
 		bA = new RigidBody(-1.0f, xbox);
 		bA.setFriction(.4f);
-		bA.setPos(new Vector3( 8.f, 5.5f, 0));
+		bA.setPos(new Vector3( worldSize * .5f, 5.5f, 0));
 		bA.setFixed(true);
 		bA.setRestitution(.5f);
 		
@@ -290,7 +296,7 @@ public class AppMain {
 		// front wall
 		bA = new RigidBody(-1.0f, zbox);
 		bA.setFriction(.4f);
-		bA.setPos(new Vector3(0, 5.5f, 8.f));
+		bA.setPos(new Vector3(0, 5.5f, worldSize * .5f));
 		bA.setFixed(true);
 		bA.setRestitution(.5f);
 		
@@ -299,14 +305,14 @@ public class AppMain {
 		// back wall
 		bA = new RigidBody(-1.0f, zbox);
 		bA.setFriction(.4f);
-		bA.setPos(new Vector3(0, 5.5f, -8.f));
+		bA.setPos(new Vector3(0, 5.5f, -worldSize * .5f));
 		bA.setFixed(true);
 		bA.setRestitution(.5f);
 		
 		world.addBody(bA);
 		
 		// add random bodies
-		for (int i=0; i<(int)MathHelper.randomRanged(1, 5); i++) {
+		for (int i=0; i<(int)MathHelper.randomRanged(1, 50); i++) {
 			float val = MathHelper.randomRanged(0, 40);
 			
 			Shape s;
@@ -403,11 +409,13 @@ public class AppMain {
 		gl.glLoadIdentity();
 		
 		GLU glu = GLUgl2.createGLU(gl);
-		glu.gluLookAt(camX, camY, camZ, 0, 0, 0, 0, 1, 0);
 		
 		synchronized (world) {
-			world.debugDraw(gl, drawContacts, drawContactN, drawContactT, drawBBox, dt);
-			wheels.debugDraw(gl, dt);
+			Vector3 base = chassis.getPos();
+			glu.gluLookAt(base.x+camX, base.y+camY, base.z+camZ, base.x, base.y, base.z, 0, 1, 0);
+			
+			world.debugDraw(gl, drawContacts, drawContactN, drawContactT, drawBBox, 0);
+			wheels.debugDraw(gl, 0);
 		}
 	}
 	
@@ -515,7 +523,7 @@ public class AppMain {
 		
 		// revert to zero by default
 		float deadCenter = 0.001f;
-		steerVel = -currSteer * dt/.5f;
+		steerVel = -currSteer * .2f;
 		
 		
 		if (steerLeft) {
@@ -533,7 +541,7 @@ public class AppMain {
 		float torque = .0f;
 		
 		if (forward) {
-			torque += 1.f;
+			torque += 2.f;
 		}
 		
 		if (reverse) {
@@ -545,13 +553,8 @@ public class AppMain {
 			wheels.getWheel(0).setSteerAngle(currSteer);
 			wheels.getWheel(1).setSteerAngle(currSteer);
 			
-			Vector3 gasPoint = new Vector3(0, -.5f, 0);
-			Vector3 forward = new Vector3(0,0,1);
-			
-			chassis.getRot().transformVector(forward, forward);
-			
-			forward.scale(torque * 20000.f);
-			chassis.applyForce(forward, chassis.toWorld(gasPoint));
+			wheels.getWheel(2).applyTorque(torque * 1000.0f);
+			wheels.getWheel(3).applyTorque(torque * 1000.0f);
 			// set the wheel
 			world.step(dt);
 		}			
