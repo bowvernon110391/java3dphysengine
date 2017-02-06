@@ -16,6 +16,20 @@ public class MathHelper {
 	public MathHelper() {
 	}
 	
+	public static float pacejkaMFLat(float degSA, float B, float C, float D, float E) {
+		// gotta wrap value around
+		if (degSA > 90.0f)
+			degSA = -180.0f + degSA;
+		if (degSA < -90.0f)
+			degSA = 180.0f + degSA;
+		
+		float term1 = B * (1-E) * degSA;
+		float term2 = (float) (E * Math.atan(B * degSA));
+		float term3 = (float) (C * Math.atan(term1 + term2));
+		float yVal = (float) (D * Math.sin(term3));
+		return yVal;
+	}
+	
 	public static float lerp(float a, float b, float mu) {
 		return (1.0f-mu) * a + mu * b;
 	}

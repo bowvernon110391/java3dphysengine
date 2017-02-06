@@ -26,7 +26,11 @@ public class RayWheel {
 	public Vector3 rayHitSide;			// side friction direction
 	public Vector3 rayHitNormal;		// the hit normal vector
 	public Vector3 rayHitForward;		// the forward direction
+	public Vector3 rayHitVel;			// the velocity of impact
 	public RigidBody groundObj;			// what did we hit?
+	
+	public float constK;	// spring stiffness (auto calculated)
+	public float constD;		// spring damping (auto calculated)
 	
 	// another dynamic data
 	public float wheelTorque;		// torque (from engine)
@@ -41,12 +45,13 @@ public class RayWheel {
 	public float massN, massSide, massForward;
 	public float accumN, accumSide, accumForward;
 	public float posError;	// displacement error?
+	public float springSpd;	// the speed of compression
 	
 	public float frictionS, frictionD;	// static and dynamic friction constant
 	
 	// static data
 	public float suspensionLength;			// together form the ray length
-	public float kFrequency, kDampRatio, kStrength;	// the spring frequency and damping constant
+	public float kDampRatio, kStrength;	// the spring frequency and damping constant
 	
 	// calculated data
 	public float beta, gamma;		// for soft constraint
@@ -80,15 +85,15 @@ public class RayWheel {
 		rayHitNormal = new Vector3();
 		rayHitForward = new Vector3();
 		rayHitSide = new Vector3();
+		rayHitVel = new Vector3();
 		
 		groundObj = null;
 		kStrength = 1.f;
 	}
 	
 	// builder pattern
-	public RayWheel setConstant(float freqHz, float dampRatio, float strength) {
+	public RayWheel setConstant(float dampRatio, float strength) {
 		this.kDampRatio = dampRatio;
-		this.kFrequency = freqHz;
 		this.kStrength = strength;
 		return this;
 	}
@@ -217,12 +222,20 @@ public class RayWheel {
 				absRS.y + absRD.y * rL,
 				absRS.z + absRD.z * rL
 				);
-		Vector3 absWP = new Vector3(
-				absRE.x + absRD.x * -wheelRadius,
-				absRE.y + absRD.y * -wheelRadius,
-				absRE.z + absRD.z * -wheelRadius
+		Vector3 baseWP = new Vector3(
+				absRS.x * (1.f-rayT) + absRE.x * rayT,
+				absRS.y * (1.f-rayT) + absRE.y * rayT,
+				absRS.z * (1.f-rayT) + absRE.z * rayT
 				);
-		
+		Vector3 absWP = new Vector3(
+				baseWP.x + absRD.x * -wheelRadius,
+				baseWP.y + absRD.y * -wheelRadius,
+				baseWP.z + absRD.z * -wheelRadius
+				);
+		Vector3 tmp = Vector3.tmp0;
+		tmp.setTo(absRS.x * (1.f-rayT) + absRE.x * rayT, 
+				absRS.y * (1.f-rayT) + absRE.y * rayT, 
+				absRS.z * (1.f-rayT) + absRE.z * rayT);
 		// ray start
 		gl.glColor3f(1, 0, 0);
 		gl.glVertex3f(absRS.x, absRS.y, absRS.z);
@@ -244,9 +257,8 @@ public class RayWheel {
 		gl.glEnd();
 		
 		// gotta draw the wheel @ the wheel position
-		
 		Vector3 absRayZ = new Vector3();
-		Vector3.cross(absRight, absRayDir, absRayZ);
+		Vector3.cross(absRight, absRayDir.inverse(), absRayZ);
 		
 		Matrix4 m = new Matrix4();
 		m.setPosition(absWP);
@@ -281,13 +293,9 @@ public class RayWheel {
 				absRE.y+absRight.y * disp, 
 				absRE.z+absRight.z * disp);
 		
-		// draw forward vector
+		// draw collision data on the ground
 		if (groundObj != null) {
-			Vector3 tmp = Vector3.tmp0;
-			tmp.setTo(absRS.x * (1.f-rayT) + absRE.x * rayT, 
-					absRS.y * (1.f-rayT) + absRE.y * rayT, 
-					absRS.z * (1.f-rayT) + absRE.z * rayT);
-			
+			// draw forward vector
 			gl.glColor3f(1, 1, 1);
 			gl.glVertex3f(
 					tmp.x, tmp.y, tmp.z
@@ -311,5 +319,32 @@ public class RayWheel {
 		}
 		
 		gl.glEnd();
+		
+		if (groundObj != null) {
+			// draw wheel load as circle on the ground
+			m.setPosition(tmp);
+			m.setRotation(rayHitSide, rayHitNormal, rayHitForward);
+			
+			gl.glPushMatrix();
+			gl.glMultMatrixf(m.m, 0);
+			gl.glRotatef(90, 0, 0, 1);
+			
+			gl.glColor3f(1, .8f, 0);
+			drawWheel(gl, accumN, 8);
+			
+			gl.glPopMatrix();
+			
+			// now draw velocity at contact
+			gl.glBegin(GL2.GL_LINES);
+			gl.glColor3f(0, 0, 1);
+			gl.glVertex3f(tmp.x, tmp.y, tmp.z);
+			gl.glVertex3f(
+					tmp.x + rayHitVel.x, 
+					tmp.y + rayHitVel.y, 
+					tmp.z + rayHitVel.z
+					);
+			gl.glEnd();
+		}
+		
 	}
 }

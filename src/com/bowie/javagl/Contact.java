@@ -4,7 +4,7 @@ import com.jogamp.opengl.GL2;
 
 public class Contact {
 	public static float MIN_RESTITUTION = 0.03f;		// minimum velocity to bounce off (0.03 m/s)
-	public static float RESTITUTION_DISSIPATE = 0.02f;	// .1% dissipated every solver iteration
+	public static float RESTITUTION_DISSIPATE = 0.01f;	// .1% dissipated every solver iteration
 	
 	public Vector3 localA, localB;	// contact point in local space
 	public Vector3 worldA, worldB;	// contact point in world space

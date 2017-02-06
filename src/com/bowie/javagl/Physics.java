@@ -335,7 +335,7 @@ public class Physics {
 		// draw all rigid bodies, using colors from
 		for (RigidBody b : bodies) {
 			float [] color = Polytope.getColor(b.getId());
-			float mult = b.isSleeping() ? .2f : 1.f;
+			float mult = b.isSleeping() ? .62f : 1.f;
 			
 			gl.glColor3f(color[0] * mult, color[1] * mult, color[2] * mult);
 			
