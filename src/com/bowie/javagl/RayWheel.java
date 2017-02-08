@@ -56,6 +56,9 @@ public class RayWheel {
 	// calculated data
 	public float beta, gamma;		// for soft constraint
 	
+	// for braking?
+	public float brakeStrength;		// 0% - 100% (100% means wheel lock)
+	
 	// constructor
 	public RayWheel(float mass, float radius, float thickness) {
 		// simple constructor
@@ -168,6 +171,14 @@ public class RayWheel {
 	
 	public void applyTorque(float torque) {
 		wheelTorque += torque;
+	}
+	
+	public void applyBrake(float strength) {
+		// simply reset value of brake
+		float brakeTorque = -wheelAngVel * (1.f / wheelInvInertia) * strength * 2.0f;
+		brakeStrength = strength;
+		
+		applyTorque(brakeTorque);
 	}
 	
 	public void calcAbsData(Vector3 chassisPos, Quaternion chassisRot) {

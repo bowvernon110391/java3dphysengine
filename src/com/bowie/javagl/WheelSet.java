@@ -90,19 +90,9 @@ public class WheelSet implements SimForce, Joint {
 //			System.out.printf("Wheelset: potential wheel colliders: %d %n", bodies.size());
 			// now we gotta update each wheel's data
 			for (RayWheel w : wheels) {
-				// let's update our position here
-				// apply torque here
-				float angAccel = w.wheelTorque * w.wheelInvInertia;
-//				w.wheelAngVel += angAccel * dt;
-				// zero out torque
-//				w.wheelTorque = 0;
-				// update position (for rendering)
-				w.wheelAngPos += (w.wheelAngVel - angAccel * dt) * dt;
-				// dissipate wheel rotation
-				
-				// wrap the value around
-				w.wheelAngPos = (float) Math.toRadians( Math.toDegrees(w.wheelAngPos) );
-//				w.wheelAngPos += -angAccel * dt;
+				// update wheel positon
+				w.wheelAngVel += w.wheelTorque * w.wheelInvInertia * dt;
+				w.wheelAngPos += w.wheelAngVel * dt;
 				// first, move last T
 				w.lastT = w.rayT;
 				// reset current T
@@ -229,21 +219,6 @@ public class WheelSet implements SimForce, Joint {
 					// calculated k and d
 					w.constK = w.massN * w.kStrength / (dt * dt);
 					w.constD = w.massN * w.kDampRatio / (dt);
-					
-					// compute slip angle  (no need to account wheel angvel)
-//					Vector3 slipVel = new Vector3(chassis.getVelWS(w.rayHitPos), w.groundObj.getVelWS(w.rayHitPos));
-					Vector3 slipVel = w.rayHitVel;
-					
-					float vLat = Vector3.dot(slipVel, w.rayHitSide);
-					float vLong = Vector3.dot(slipVel, w.rayHitForward);
-					
-					float slipAngle = (float) Math.toDegrees( Math.atan2(-vLat, -vLong) );
-					
-					slipAngle = slipAngle < -90.f ? slipAngle + 180.f : slipAngle > 90.f ? slipAngle - 180.f : slipAngle;
-					
-					w.beta = slipAngle;
-//					if (w.name == "FR" || w.name == "BR")
-//						System.out.printf("%s sA %.4f%n", w.name, slipAngle);
 				}
 				
 			}
@@ -271,55 +246,78 @@ public class WheelSet implements SimForce, Joint {
 					w.accumN = Math.abs(fSuspensionMag);
 					wheelLoad += w.accumN;
 					
-					// now compute longitudinal force
-					float longAccel = -w.wheelTorque * w.wheelInvInertia;
+					// compute limit for side friction
+//					w.accumSide = w.accumN * w.frictionS * dt;
+					w.accumForward = w.accumN * w.frictionS;
+					w.gamma = w.brakeStrength;	// how much friction impulse for braking we apply?
+					
+					// compute longitudinal slip
+					float wv = w.wheelAngVel * w.wheelRadius;
+					float gv = -Vector3.dot(w.rayHitVel, w.rayHitForward);
+					
+					float sr = (wv - gv) / gv * 100.0f;
+					
+					sr = MathHelper.clamp(sr, -100, 100);
+					
+					// got slip ratio, calculate maximum drive force
+					w.accumForward = Math.min(4200, w.accumN) * Math.abs(
+							MathHelper.pacejkaMFLat(sr, .2f, 1.6f, 1.8f, .5f)
+							);
+					
+					
+//					if (w.name == "BR")
+//					System.out.printf("%s %.4f %.4f %.4f%n", w.name, wv, gv, sr);
+					
+					// calculate drive force?
+					float linAccel = -(w.wheelTorque * w.wheelInvInertia);	// this is the linear acceleration
+					float fDriveMag = linAccel * w.massForward / dt;
+					
+					// clamp it
+					fDriveMag = MathHelper.clamp(fDriveMag, -w.accumForward, w.accumForward);
+					
+					// apply it?
+					Vector3 fDrive = new Vector3(w.rayHitForward);
+					fDrive.scale(fDriveMag);
+					
+					// scale back the forward
+					w.accumForward *= dt;
+					
+					// apply drive (longitudinal force)
+					chassis.applyForce(fDrive, w.rayHitPos);
+					w.groundObj.applyForce(fDrive.inverse(), w.rayHitPos);
+					
+					// modify ray hit velocity and compute beta
+					linAccel = fDriveMag / w.massForward;
+					
+					// update angular velocity before we change the original ray hit velocity
+					// theta = linearVelocity / radius
+					w.wheelAngVel = -Vector3.dot(w.rayHitVel, w.rayHitForward) / w.wheelRadius;	// achually
+					
+					// now let's compute slip ratio					
+					// modify ray hit velocity
+					w.rayHitVel.x -= w.rayHitForward.x * linAccel;
+					w.rayHitVel.y -= w.rayHitForward.y * linAccel;
+					w.rayHitVel.z -= w.rayHitForward.z * linAccel;
+		
+					// apply torque as drive force?
+					float beta = (float)Math.toDegrees( 
+							Math.atan2(-Vector3.dot(w.rayHitVel, w.rayHitSide), -Vector3.dot(w.rayHitVel, w.rayHitForward))
+							);
+					// clamp shit?
+					beta = beta > 90.f ? beta - 180.f : beta < -90.f ? beta + 180.f : beta;
+					
+					w.accumSide = Math.min(3200, w.accumN) * Math.abs(MathHelper.pacejkaMFLat(beta, .1f, 1.8f, w.frictionS, 0.1f)) * dt;
+					if (w.name == "BR") {
+//						System.out.printf("%s beta: %.4f%n", w.name, beta);
+					}
+					
+					// zero out torque and brake
 					w.wheelTorque = 0;
-					float fLongMag = longAccel * w.massForward / dt;
-					
-					// gotta clamp
-					fLongMag = MathHelper.clamp(fLongMag, -w.accumN * 1.5f, w.accumN * 1.5f);
-					
-					Vector3 fLong = new Vector3(w.rayHitForward);
-					fLong.scale(fLongMag);
-					
-					// apply it
-					chassis.applyForce(fLong, w.rayHitPos);
-					w.groundObj.applyForce(fLong.inverse(), w.rayHitPos);
-					
-					// gotta apply reversal torque (modify wheel angular velocity)
-					float angVel = -Vector3.dot(w.rayHitVel, w.rayHitForward) / w.wheelRadius;
-					w.wheelAngVel = angVel;	// gotta apply some traction control here
-					
-					// gotta recompute beta it seems
-//					w.rayHitVel.setTo(chassis.getVelWS(w.absWheelPos));
-					
-					// now we compute lateral force limit					
-					float latMag =Math.abs( Vector3.dot(w.rayHitVel, w.rayHitSide) );
-					if (w.name == "BR" || w.name == "BL")
-					System.out.printf("%s groundvel: %.2f %.2f %.2f | %.2f, slip: %.2f%n",
-							w.name,
-							w.rayHitVel.x, w.rayHitVel.y, w.rayHitVel.z,
-							latMag, w.beta);
-					
-					float tireFriction = Math.abs( MathHelper.pacejkaMFLat(w.beta, .1f, 2.0f, w.frictionS, -0.7f) );
-					// try to zero out when speed is low
-//					if (w.rayHitVel.lengthSquared() <  Vector3.EPSILON) {
-//						tireFriction = 0;
-//						System.out.println("low speed: use static friction model");
-//					}
-					// if we reach speed limit, we gotta switch though
-					w.accumSide = Math.min(w.accumN * tireFriction, 2800) * dt;
-//					w.accumSide = Math.min(w.accumN, 2000) * tireFriction * dt;
-					
-					// now apply our counter torque
-//					w.applyTorque(fLongMag);
-					// update our angular velocity
-//					Vector3 vel = new Vector3(chassis.getVelWS(w.rayHitPos), w.groundObj.getVelWS(w.rayHitPos));
-//					w.wheelAngVel = Vector3.dot(vel, w.rayHitForward) / w.wheelRadius; 
+					w.brakeStrength = 0;
 				}
 			}
 			// log something
-			System.out.printf("wheelLoad : %.4f%n", wheelLoad);
+//			System.out.printf("wheelLoad : %.4f%n", wheelLoad);
 			// normalize it
 			for (RayWheel w : wheels) {
 				if (wheelLoad > .0f)
@@ -349,12 +347,14 @@ public class WheelSet implements SimForce, Joint {
 
 	@Override
 	public void preCalculate(float dt, float baumgarte, float slop) {
-		
+		// now we recompute wheel angular velocity?
 	}
 
 	@Override
 	public void solve() {
 		// apply side friction
+		
+		// allocate enough shit
 		for (RayWheel w : wheels) {
 			if (w.groundObj == null)
 				continue;
@@ -372,6 +372,21 @@ public class WheelSet implements SimForce, Joint {
 			
 			chassis.applyImpulse(pLat, w.rayHitPos);
 			w.groundObj.applyImpulse(pLat.inverse(), w.rayHitPos);
+			
+			// now for longitudinal brakes
+//			vel = new Vector3(w.getVelWS(chassis, w.rayHitPos), w.groundObj.getVelWS(w.rayHitPos));
+//			
+//			float pLongMag = -Vector3.dot(vel, w.rayHitForward) * w.gamma * w.massForward;
+//			
+//			// clamp
+//			pLongMag = MathHelper.clamp(pLongMag, -w.accumForward, w.accumForward);
+//			
+//			// apply
+//			Vector3 pLong = new Vector3(w.rayHitForward);
+//			pLong.scale(pLongMag);
+//			
+//			chassis.applyImpulse(pLong, w.rayHitPos);
+//			w.groundObj.applyImpulse(pLong.inverse(), w.rayHitPos);
 		}
 	}
 
@@ -383,8 +398,6 @@ public class WheelSet implements SimForce, Joint {
 
 	@Override
 	public void positionSolve() {
-		// TODO Auto-generated method stub
-		
 	}
 
 	

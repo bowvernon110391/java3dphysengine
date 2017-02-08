@@ -58,8 +58,8 @@ public class AppMain {
 	private boolean useCoreShape = false;
 	
 	private float targetSteer = .0f;
-	private float maxSteer = (float) Math.toRadians(30);	// 50 degree maximum
-	private float steerStrength = .2f;
+	private float maxSteer = (float) Math.toRadians(40);	// 33 degree maximum
+	private float steerStrength = .4f;
 	private float currSteer = .0f;
 	
 	private boolean steerRight = false;
@@ -174,10 +174,10 @@ public class AppMain {
 				new Vector3( .85f, -.001f, 1.9f),
 				new Vector3(-.85f, -.001f, 1.9f),
 				
-				new Vector3(-.875f,  .75f,-1.7f),	// 
-				new Vector3( .875f,  .75f,-1.7f),
-				new Vector3( .875f,  .5f, 0.94f),
-				new Vector3(-.875f,  .5f, 0.94f),
+				new Vector3(-.875f,  .8f,-1.7f),	// 
+				new Vector3( .875f,  .8f,-1.7f),
+				new Vector3( .875f,  .5f, 1.15f),
+				new Vector3(-.875f,  .5f, 1.15f),
 		};
 		
 		int [][] chassis_faces = new int[][]{
@@ -279,42 +279,42 @@ public class AppMain {
 		RayWheel w;
 		
 		// front left
-		w = new RayWheel(5.f, .3f, .25f)
+		w = new RayWheel(25.f, .3f, .25f)
 			.setFriction(.75f, .1f)
-			.setSuspensionLength(.25f)
+			.setSuspensionLength(.3f)
 			.setRayDir(new Vector3(.0f, -1, .0f))
 			.setRayStart(new Vector3(.795f, .25f, 1.f))
-			.setConstant(.2f, .1f)
+			.setConstant(.2f, .25f)
 			.setName("FL");
 		wheels.addWheel(w);
 		
 		// front right
-		w = new RayWheel(5.f, .3f, .25f)
+		w = new RayWheel(25.f, .3f, .25f)
 			.setFriction(.75f, .1f)
-			.setSuspensionLength(.25f)
+			.setSuspensionLength(.3f)
 			.setRayDir(new Vector3(-.0f, -1, .0f))
 			.setRayStart(new Vector3(-.795f, .25f, 1.f))
-			.setConstant(.2f, .1f)
+			.setConstant(.2f, .25f)
 			.setName("FR");
 		wheels.addWheel(w);
 		
 		// back left
-		w = new RayWheel(5.f, .35f, .25f)
+		w = new RayWheel(30.f, .35f, .25f)
 			.setFriction(.75f, .1f)
-			.setSuspensionLength(.25f)
+			.setSuspensionLength(.3f)
 			.setRayDir(new Vector3(.0f, -1, 0))
-			.setRayStart(new Vector3(.795f, .3f, -1.f))
-			.setConstant(.2f, .1f)
+			.setRayStart(new Vector3(.795f, .35f, -1.f))
+			.setConstant(.2f, .25f)
 			.setName("BL");
 		wheels.addWheel(w);
 		
 		// back right
-		w = new RayWheel(5.f, .35f, .25f)
+		w = new RayWheel(30.f, .35f, .25f)
 			.setFriction(.75f, .1f)
-			.setSuspensionLength(.25f)
+			.setSuspensionLength(.3f)
 			.setRayDir(new Vector3(-.0f, -1, 0))
-			.setRayStart(new Vector3(-.795f, .3f, -1.f))
-			.setConstant(.2f, .1f)
+			.setRayStart(new Vector3(-.795f, .35f, -1.f))
+			.setConstant(.2f, .25f)
 			.setName("BR");
 		wheels.addWheel(w);
 		
@@ -529,10 +529,12 @@ public class AppMain {
 			camMode = 1;
 			break;
 			
+		case KeyEvent.VK_W:
 		case KeyEvent.VK_UP:
 			forward = true;
 			break;
 			
+		case KeyEvent.VK_S:
 		case KeyEvent.VK_DOWN:
 			reverse = true;
 			break;
@@ -589,9 +591,12 @@ public class AppMain {
 		case KeyEvent.VK_RIGHT:
 			steerRight = false;
 			break;
+			
+		case KeyEvent.VK_W:
 		case KeyEvent.VK_UP:
 			forward = false;
 			break;
+		case KeyEvent.VK_S:
 		case KeyEvent.VK_DOWN:
 			reverse = false;
 			break;
@@ -655,11 +660,34 @@ public class AppMain {
 			wheels.getWheel(1).setSteerAngle(currSteer);
 			
 			// apply driving force on back wheels
-			float torquePerSec = 300 / dt;
-			wheels.getWheel(2).applyTorque(torque * torquePerSec);
-			wheels.getWheel(3).applyTorque(torque * torquePerSec);
+			float frontBrake = 0.2f;
+			float rearBrake = 1.f - frontBrake;
+			float torquePerSec = 300.5f;
+			// if braking
+			if (torque < 0.0f) {
+				float axleVel = wheels.getWheel(2).wheelAngVel + wheels.getWheel(3).wheelAngVel;
+				
+				if (axleVel < 0.0001f) {
+					wheels.getWheel(2).applyTorque(torque * torquePerSec);
+					wheels.getWheel(3).applyTorque(torque * torquePerSec);
+				} else {
+					// apply front brake too
+					wheels.getWheel(0).applyBrake(frontBrake);
+					wheels.getWheel(1).applyBrake(frontBrake);
+					wheels.getWheel(2).applyBrake(rearBrake);
+					wheels.getWheel(3).applyBrake(rearBrake);
+				}
+				
+			} else {
+				wheels.getWheel(2).applyTorque(torque * torquePerSec);
+				wheels.getWheel(3).applyTorque(torque * torquePerSec);
+			}
 
 			world.step(dt);
+			
+			// check our speed
+			float carSpd = chassis.getVel().length() * 3.6f;
+			System.out.printf("car speed: %.4f km/h%n", carSpd);
 			
 			// now calculate camera
 			Vector3 tPos = chassis.getPos();
