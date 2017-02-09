@@ -58,7 +58,7 @@ public class AppMain {
 	private boolean useCoreShape = false;
 	
 	private float targetSteer = .0f;
-	private float maxSteer = (float) Math.toRadians(40);	// 33 degree maximum
+	private float maxSteer = (float) Math.toRadians(33);	// 33 degree maximum
 	private float steerStrength = .4f;
 	private float currSteer = .0f;
 	
@@ -169,15 +169,15 @@ public class AppMain {
 		
 		// 1.5f, .5f, 2.75f
 		Vector3 [] chassis_vertex = new Vector3[]{
-				new Vector3(-.85f, -.001f,-1.55f),	// 
-				new Vector3( .85f, -.001f,-1.55f),
-				new Vector3( .85f, -.001f, 1.9f),
-				new Vector3(-.85f, -.001f, 1.9f),
+				new Vector3(-.85f, -.01f,-1.55f),	// 
+				new Vector3( .85f, -.01f,-1.55f),
+				new Vector3( .85f, -.01f, 1.9f),
+				new Vector3(-.85f, -.01f, 1.9f),
 				
 				new Vector3(-.875f,  .8f,-1.7f),	// 
 				new Vector3( .875f,  .8f,-1.7f),
-				new Vector3( .875f,  .5f, 1.15f),
-				new Vector3(-.875f,  .5f, 1.15f),
+				new Vector3( .875f,  .6f, 1.15f),
+				new Vector3(-.875f,  .6f, 1.15f),
 		};
 		
 		int [][] chassis_faces = new int[][]{
@@ -647,11 +647,11 @@ public class AppMain {
 		float torque = .0f;
 		
 		if (forward) {
-			torque += 2.f;
+			torque += 1.f;
 		}
 		
 		if (reverse) {
-			torque -= 3.f;
+			torque -= 1.1f;
 		}
 		
 		synchronized (world) {
@@ -660,9 +660,10 @@ public class AppMain {
 			wheels.getWheel(1).setSteerAngle(currSteer);
 			
 			// apply driving force on back wheels
-			float frontBrake = 0.2f;
+			float frontBrake = 0.4f;
 			float rearBrake = 1.f - frontBrake;
-			float torquePerSec = 300.5f;
+			float torquePerSec = 650.0f - (wheels.getWheel(2).wheelAngVel + wheels.getWheel(3).wheelAngVel) * .5f;
+			torquePerSec = torquePerSec < 0 ? 0 : torquePerSec;
 			// if braking
 			if (torque < 0.0f) {
 				float axleVel = wheels.getWheel(2).wheelAngVel + wheels.getWheel(3).wheelAngVel;
@@ -672,10 +673,10 @@ public class AppMain {
 					wheels.getWheel(3).applyTorque(torque * torquePerSec);
 				} else {
 					// apply front brake too
-					wheels.getWheel(0).applyBrake(frontBrake);
-					wheels.getWheel(1).applyBrake(frontBrake);
-					wheels.getWheel(2).applyBrake(rearBrake);
-					wheels.getWheel(3).applyBrake(rearBrake);
+					wheels.getWheel(0).applyBrake(frontBrake / dt);
+					wheels.getWheel(1).applyBrake(frontBrake / dt);
+					wheels.getWheel(2).applyBrake(rearBrake / dt);
+					wheels.getWheel(3).applyBrake(rearBrake / dt);
 				}
 				
 			} else {

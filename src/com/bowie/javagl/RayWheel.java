@@ -175,7 +175,7 @@ public class RayWheel {
 	
 	public void applyBrake(float strength) {
 		// simply reset value of brake
-		float brakeTorque = -wheelAngVel * (1.f / wheelInvInertia) * strength * 2.0f;
+		float brakeTorque = -wheelAngVel * (1.f / wheelInvInertia) * strength;
 		brakeStrength = strength;
 		
 		applyTorque(brakeTorque);
