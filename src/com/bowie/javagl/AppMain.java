@@ -261,8 +261,8 @@ public class AppMain {
 		
 		
 		// setup chassis
-		chassis = new RigidBody(1200.f, carChassis);
-		chassis.setRestitution(0.5f);
+		chassis = new RigidBody(200.f, carChassis);
+		chassis.setRestitution(0.1f);
 		chassis.setContinuous(true);
 		chassis.setCcdRadius(.01f);
 //		chassis.setClampMotion(true);
@@ -270,7 +270,7 @@ public class AppMain {
 //		chassis.setMaxLinVel(650.f);
 		chassis.setPos(new Vector3(2, -1.f, 4));
 		chassis.setFriction(.13f);
-		chassis.setSleepingThreshold(0.00001f);
+		chassis.setCanSleep(false);
 		
 		world.addBody(chassis);
 		

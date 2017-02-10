@@ -154,17 +154,12 @@ public class Contact {
 		kRestitution = Math.min(bodyA.getRestitution(), bodyB.getRestitution());
 		
 		// calculate restitution target, set to zero when it becomes too small
-		Vector3 vel = new Vector3();
-		Vector3.sub(bodyA.getVelWS(worldA), bodyB.getVelWS(worldB), vel);
+		// calculate target velocity using old velocity
+		Vector3 vel = new Vector3(bodyA.getLastVelWS(worldA), bodyB.getLastVelWS(worldB));
+		float vn = Vector3.dot(vel, normal);
 		
-		// clamp our restitution (slop in restitution)
-		// the slop is proportional to time step. so it's consistent over frames
-		float vn = Math.max(0, -Vector3.dot(vel, normal) - (MIN_RESTITUTION/dt) );
-		
-		restitution = kRestitution * vn;
-		
-//		if (kRestitution > Vector3.EPSILON)
-//			System.out.println("k, restitution: " + kRestitution + ", " +restitution);
+		// make sure it's not negative
+		restitution = Math.max(0,  -kRestitution * vn);
 	}
 	
 	private void calcNormalMass(Vector3 r1, Vector3 r2) {
@@ -267,174 +262,6 @@ public class Contact {
 		bodyB.applyImpulse(j.inverse(), worldB);
 	}
 	
-//	public void preCalculate(float dt, float baumgarte, float slop) {
-//		// set friction
-//		friction = Math.min(bodyA.getFriction(), bodyB.getFriction());
-//		// compute bias
-//		bias = Math.max(-depth-slop, 0) * baumgarte / dt;
-//		// compute Jacobian / effective mass
-//		Vector3 r1 = new Vector3();
-//		Vector3 r2 = new Vector3();
-//		
-////		Vector3.sub(worldA, bodyA.getPos(), r1);
-////		Vector3.sub(worldB, bodyB.getPos(), r2);
-//		bodyA.getRot().transformVector(localA, r1);
-//		bodyB.getRot().transformVector(localB, r2);
-//		
-//		Vector3 rn1 = new Vector3();
-//		Vector3 rn2 = new Vector3();
-//		
-//		// calculate mass normal
-//		
-//		Vector3.cross(r1, normal, rn1);
-//		Vector3.cross(rn1, r1, rn1);
-//		bodyA.getRot().conjugated().transformVector(rn1, rn1);
-//		bodyA.getInvInertia().transformVector3(rn1, rn1);
-//		bodyA.getRot().transformVector(rn1, rn1);
-//		
-//		Vector3.cross(r2, normal, rn2);
-//		Vector3.cross(rn2, r2, rn2);
-//		bodyB.getRot().conjugated().transformVector(rn2, rn2);
-//		bodyB.getInvInertia().transformVector3(rn2, rn2);
-//		bodyB.getRot().transformVector(rn2, rn2);
-//		
-//		Vector3.add(rn1, rn2, rn1);
-//		
-//		massN = bodyA.getInvMass() + bodyB.getInvMass();
-//		massN += Vector3.dot(rn1, normal);
-//		massN = 1.0f/massN;
-//		
-//		// calculate mass tangent1
-//		Vector3.cross(r1, tangent1, rn1);
-//		Vector3.cross(rn1, r1, rn1);
-//		bodyA.getRot().conjugated().transformVector(rn1, rn1);
-//		bodyA.getInvInertia().transformVector3(rn1, rn1);
-//		bodyA.getRot().transformVector(rn1, rn1);
-//		
-//		Vector3.cross(r2, tangent1, rn2);
-//		Vector3.cross(rn2, r2, rn2);
-//		bodyB.getRot().conjugated().transformVector(rn2, rn2);
-//		bodyB.getInvInertia().transformVector3(rn2, rn2);
-//		bodyB.getRot().transformVector(rn2, rn2);
-//		
-//		Vector3.add(rn1, rn2, rn1);
-//		
-//		massT1 = bodyA.getInvMass() + bodyB.getInvMass();
-//		massT1 += Vector3.dot(rn1, tangent1);
-//		massT1 = 1.0f/massT1;
-//		
-//		// calculate mass tangent2
-//		Vector3.cross(r1, tangent2, rn1);
-//		Vector3.cross(rn1, r1, rn1);
-//		bodyA.getRot().conjugated().transformVector(rn1, rn1);
-//		bodyA.getInvInertia().transformVector3(rn1, rn1);
-//		bodyA.getRot().transformVector(rn1, rn1);
-//		
-//		Vector3.cross(r2, tangent2, rn2);
-//		Vector3.cross(rn2, r2, rn2);
-//		bodyB.getRot().conjugated().transformVector(rn2, rn2);
-//		bodyB.getInvInertia().transformVector3(rn2, rn2);
-//		bodyB.getRot().transformVector(rn2, rn2);
-//		
-//		Vector3.add(rn1, rn2, rn1);
-//		
-//		massT2 = bodyA.getInvMass() + bodyB.getInvMass();
-//		massT2 += Vector3.dot(rn1, tangent2);
-//		massT2 = 1.0f/massT2;
-//		
-//		// let's apply old impulse
-//		rn1.setTo(normal);
-//		rn1.scale(accumPN);
-//		bodyA.applyImpulse(rn1, worldA);
-//		bodyB.applyImpulse(rn1.inverse(), worldB);
-//		
-//		rn1.setTo(tangent1);
-//		rn1.scale(accumPT1);
-//		bodyA.applyImpulse(rn1, worldA);
-//		bodyB.applyImpulse(rn1.inverse(), worldB);
-//		
-//		rn1.setTo(tangent2);
-//		rn1.scale(accumPT2);
-//		bodyA.applyImpulse(rn1, worldA);
-//		bodyB.applyImpulse(rn1.inverse(), worldB);
-//	}
-	/*public void preCalculate2(float dt, float baumgarte, float slop) {
-		// set friction
-		friction = (bodyA.getFriction() * bodyB.getFriction());
-		// compute bias
-		bias = Math.max(-depth-slop, 0) * baumgarte / dt;
-		// compute Jacobian / effective mass
-		Vector3 r1 = new Vector3();
-		Vector3 r2 = new Vector3();
-		
-		Vector3.sub(worldA, bodyA.getPos(), r1);
-		Vector3.sub(worldA, bodyB.getPos(), r2);
-		
-		Vector3 rn1 = new Vector3();
-		Vector3 rn2 = new Vector3();
-		
-		// calculate mass normal
-		Vector3.cross(r1, normal, rn1);
-		Vector3.cross(rn1, r1, rn1);
-		bodyA.getInvInertia().transformVector3(rn1, rn1);
-		
-		Vector3.cross(r2, normal, rn2);
-		Vector3.cross(rn2, r2, rn2);
-		bodyB.getInvInertia().transformVector3(rn2, rn2);
-		
-		Vector3.add(rn1, rn2, rn1);
-		
-		massN = bodyA.getInvMass() + bodyB.getInvMass();
-		massN += Vector3.dot(rn1, normal);
-		massN = 1.0f/massN;
-		
-		// calculate mass tangent1
-		Vector3.cross(r1, tangent1, rn1);
-		Vector3.cross(rn1, r1, rn1);
-		bodyA.getInvInertia().transformVector3(rn1, rn1);
-		
-		Vector3.cross(r2, tangent1, rn2);
-		Vector3.cross(rn2, r2, rn2);
-		bodyB.getInvInertia().transformVector3(rn2, rn2);
-		
-		Vector3.add(rn1, rn2, rn1);
-		
-		massT1 = bodyA.getInvMass() + bodyB.getInvMass();
-		massT1 += Vector3.dot(rn1, tangent1);
-		massT1 = 1.0f/massT1;
-		
-		// calculate mass tangent2
-		Vector3.cross(r1, tangent2, rn1);
-		Vector3.cross(rn1, r1, rn1);
-		bodyA.getInvInertia().transformVector3(rn1, rn1);
-		
-		Vector3.cross(r2, tangent2, rn2);
-		Vector3.cross(rn2, r2, rn2);
-		bodyB.getInvInertia().transformVector3(rn2, rn2);
-		
-		Vector3.add(rn1, rn2, rn1);
-		
-		massT2 = bodyA.getInvMass() + bodyB.getInvMass();
-		massT2 += Vector3.dot(rn1, tangent2);
-		massT2 = 1.0f/massT2;
-		
-		// let's apply old impulse
-		rn1.setTo(normal);
-		rn1.scale(accumPN);
-		bodyA.applyImpulse(rn1, worldA);
-		bodyB.applyImpulse(rn1.inverse(), worldA);
-		
-		rn1.setTo(tangent1);
-		rn1.scale(accumPT1);
-		bodyA.applyImpulse(rn1, worldA);
-		bodyB.applyImpulse(rn1.inverse(), worldA);
-		
-		rn1.setTo(tangent2);
-		rn1.scale(accumPT2);
-		bodyA.applyImpulse(rn1, worldA);
-		bodyB.applyImpulse(rn1.inverse(), worldA);
-	}
-	*/
 	public void applyImpulse() {
 		// first, normal impulse
 		Vector3 vAB = Vector3.tmp0;
@@ -443,8 +270,6 @@ public class Contact {
 		float pN = (-Vector3.dot(vAB, normal) + restitution) * massN;
 		
 		// smoothen out restitution
-		restitution *= (1.0f-RESTITUTION_DISSIPATE);
-		
 		float dPN = accumPN;
 		accumPN = Math.max(dPN + pN, 0);
 		dPN = accumPN - dPN;

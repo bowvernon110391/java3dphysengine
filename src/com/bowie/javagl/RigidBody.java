@@ -30,6 +30,10 @@ public class RigidBody {
 	private Vector3 vel = new Vector3();		// linear velocity
 	private Vector3 angVel = new Vector3();		// angular velocity
 	
+	// previous state
+	private Vector3 lastVel = new Vector3();
+	private Vector3 lastAngVel = new Vector3();
+	
 	private Vector3 linBias = new Vector3();	// linear bias velocity
 	private Vector3 angBias = new Vector3();	// angular bias velocity
 	
@@ -306,6 +310,15 @@ public class RigidBody {
 		return worldVel;
 	}
 	
+	public Vector3 getLastVelWS(Vector3 wp) {
+		Vector3 worldVel = new Vector3();
+		Vector3 r = new Vector3();
+		Vector3.sub(wp, pos, r);
+		Vector3.cross(lastAngVel, r, worldVel);
+		Vector3.add(worldVel, lastVel, worldVel);
+		return worldVel;
+	}
+	
 	public Vector3 getBiasVelWS(Vector3 wp) {
 		// get bias velocity of a point
 		// in world space
@@ -318,6 +331,10 @@ public class RigidBody {
 	}
 	
 	public void updateVelocity(float dt) {
+		// record our data?
+		lastVel.setTo(vel);
+		lastAngVel.setTo(angVel);
+		
 		// linear is easy
 		Vector3 scaledAccel = new Vector3(accel);
 		scaledAccel.scale(dt);
