@@ -669,13 +669,13 @@ public class AppMain {
 			// apply driving force on back wheels
 			float frontBrake = 0.4f;
 			float rearBrake = 1.f - frontBrake;
-			float torquePerSec = 650.0f - (wheels.getWheel(2).wheelAngVel + wheels.getWheel(3).wheelAngVel) * .5f;
+			float torquePerSec = 350.0f - (wheels.getWheel(2).wheelAngVel + wheels.getWheel(3).wheelAngVel) * .5f;
 			torquePerSec = torquePerSec < 0 ? 0 : torquePerSec;
 			// if braking
 			if (torque < 0.0f) {
 				float axleVel = wheels.getWheel(2).wheelAngVel + wheels.getWheel(3).wheelAngVel;
 				
-				if (axleVel < 0.0001f) {
+				if (axleVel < 0.001f) {
 					wheels.getWheel(2).applyTorque(torque * torquePerSec);
 					wheels.getWheel(3).applyTorque(torque * torquePerSec);
 				} else {

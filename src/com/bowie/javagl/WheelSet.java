@@ -246,23 +246,24 @@ public class WheelSet implements SimForce, Joint {
 					
 					float vLat = -Vector3.dot(w.rayHitVel, w.rayHitSide);
 					float vLong = -Vector3.dot(w.rayHitVel, w.rayHitForward);
+					float vLen = (float) Math.sqrt(vLong*vLong + vLat*vLat);
 					
 					float slipAngle = (float) Math.toDegrees( Math.atan2(vLat, vLong) );
-					float gndVel = -Vector3.dot(w.rayHitForward, w.rayHitVel);
-					float wVel = (w.wheelTorque * w.wheelInvInertia * w.wheelRadius) * dt;
-					float slipRatio;
+					float gndVel = -Vector3.dot(w.rayHitForward, w.rayHitVel);		// ground velocity
+					float wVel = w.wheelAngVel * w.wheelRadius;						// wheel velocity
+					float gndVelL = Math.abs(gndVel);
+					float slipRatio = -0;
 					
-					if (w.wheelTorque > Vector3.EPSILON)
-						slipRatio = 13;
-					else if (w.wheelTorque < -Vector3.EPSILON)
-						slipRatio = -13;
-					else
-						slipRatio = 0;
+					if (gndVelL < 4.2f) {
+						gndVelL = 4.2f;
+					}
+					
+					slipRatio = (wVel-gndVel) / gndVelL * 100.f;
+					slipRatio = MathHelper.clamp(slipRatio, -100.f, 100.f);
 					
 					// compute longitudinal force
-					float vLen = (float) Math.sqrt(vLong*vLong + vLat*vLat);
-					float latLoadScaler = Math.min(2.4f,  vLen / 20.f);	// cap at 2x
-					float longLoadScaler = Math.min(2.f, vLen / 10.f);
+					float latLoadScaler = Math.min(2.4f,  vLen / 14.f);	// cap at 2.4x
+					float longLoadScaler = Math.min(2.1f, vLen / 12.f);	// cap at 2x
 					float fLongPMF = MathHelper.pacejkaMFLat(slipRatio, .1f, 1.3f, .95f + latLoadScaler, .2f) * MathHelper.clamp(w.accumN, 400.f, 12500.f);
 					// compute lateral force
 					float fLatPMF =MathHelper.pacejkaMFLat(slipAngle, .2f, 1.4f, .98f + longLoadScaler, .02f) * MathHelper.clamp(w.accumN, 400.f, 12500.f);
@@ -272,10 +273,10 @@ public class WheelSet implements SimForce, Joint {
 										
 					float fCombined = (float) Math.sqrt(fLatPMF*fLatPMF + fLongPMF*fLongPMF);
 					if (w.name == "BR") {
-						System.out.printf("%.4f %.4f %.4f%n", vLat, vLong, vLen);
+						System.out.printf("%.4f %.4f %.4f | %.4f %.4f%n", slipRatio, slipAngle, vLen, latLoadScaler, longLoadScaler);
 					}
 					// clamp against friction circle?
-					float maxF = fSuspensionMag * (1.f+longLoadScaler);
+					float maxF = fSuspensionMag * (1.f+(longLoadScaler+latLoadScaler)*.5f);
 					
 					if (fCombined > 0) {
 						float scale = maxF / fCombined;
@@ -288,7 +289,7 @@ public class WheelSet implements SimForce, Joint {
 					// apply it
 					// it's only valid for high speed cornering
 					w.lowSpeedMode = true;	// assume true
-					w.staticLoad = w.accumN * w.frictionS;	// when speed is low, use this
+					w.staticLoad = maxF;	// when speed is low, use this
 					// only apply if speed is > 15 km/h
 					if (vLen > 4.2f) {
 						w.lowSpeedMode = false;
