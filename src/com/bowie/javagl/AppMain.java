@@ -174,8 +174,8 @@ public class AppMain {
 				new Vector3( .85f, -.01f, 1.9f),
 				new Vector3(-.85f, -.01f, 1.9f),
 				
-				new Vector3(-.875f,  .8f,-1.7f),	// 
-				new Vector3( .875f,  .8f,-1.7f),
+				new Vector3(-.875f,  .9f,-1.7f),	// 
+				new Vector3( .875f,  .9f,-1.7f),
 				new Vector3( .875f,  .5f, 1.15f),
 				new Vector3(-.875f,  .5f, 1.15f),
 		};
@@ -281,40 +281,40 @@ public class AppMain {
 		// front left
 		w = new RayWheel(25.f, .3f, .25f)
 			.setFriction(.75f, .1f)
-			.setSuspensionLength(.3f)
+			.setSuspensionLength(.33f)
 			.setRayDir(new Vector3(.0f, -1, .0f))
 			.setRayStart(new Vector3(.795f, .25f, 1.f))
-			.setConstant(.21f, .35f)
+			.setConstant(.421f, .06f)
 			.setName("FL");
 		wheels.addWheel(w);
 		
 		// front right
 		w = new RayWheel(25.f, .3f, .25f)
 			.setFriction(.75f, .1f)
-			.setSuspensionLength(.3f)
+			.setSuspensionLength(.33f)
 			.setRayDir(new Vector3(-.0f, -1, .0f))
 			.setRayStart(new Vector3(-.795f, .25f, 1.f))
-			.setConstant(.21f, .35f)
+			.setConstant(.421f, .06f)
 			.setName("FR");
 		wheels.addWheel(w);
 		
 		// back left
 		w = new RayWheel(30.f, .35f, .25f)
 			.setFriction(.75f, .1f)
-			.setSuspensionLength(.3f)
+			.setSuspensionLength(.33f)
 			.setRayDir(new Vector3(.0f, -1, 0))
 			.setRayStart(new Vector3(.795f, .35f, -1.f))
-			.setConstant(.21f, .31f)
+			.setConstant(.421f, .04f)
 			.setName("BL");
 		wheels.addWheel(w);
 		
 		// back right
 		w = new RayWheel(30.f, .35f, .25f)
 			.setFriction(.75f, .1f)
-			.setSuspensionLength(.3f)
+			.setSuspensionLength(.33f)
 			.setRayDir(new Vector3(-.0f, -1, 0))
 			.setRayStart(new Vector3(-.795f, .35f, -1.f))
-			.setConstant(.21f, .31f)
+			.setConstant(.421f, .04f)
 			.setName("BR");
 		wheels.addWheel(w);
 		

@@ -162,8 +162,8 @@ public class WheelSet implements SimForce, Joint {
 					
 					// calculate speed of compression (scaled)
 					// v = x / t
-//					w.springSpd = (w.lastT - w.rayT) * (w.suspensionLength + w.wheelRadius) / dt * normScale;
-					w.springSpd = -Vector3.dot(w.rayHitNormal, w.rayHitVel);
+					w.springSpd = (w.lastT - w.rayT) * (w.suspensionLength + w.wheelRadius) / dt * normScale;
+//					w.springSpd = -Vector3.dot(w.rayHitNormal, w.rayHitVel);
 //					w.springSpd = Math.max(0, w.springSpd);
 					
 					// common used data for mass calculation
@@ -248,36 +248,46 @@ public class WheelSet implements SimForce, Joint {
 					float vLong = -Vector3.dot(w.rayHitVel, w.rayHitForward);
 					float vLen = (float) Math.sqrt(vLong*vLong + vLat*vLat);
 					
+					// compute slip angle
 					float slipAngle = (float) Math.toDegrees( Math.atan2(vLat, vLong) );
+					
+					// compute slip ratio
 					float gndVel = -Vector3.dot(w.rayHitForward, w.rayHitVel);		// ground velocity
-					float wVel = w.wheelAngVel * w.wheelRadius;						// wheel velocity
+					float wVel = w.wheelAngVel * w.wheelRadius;	// wheel velocity
+					float wAccel = w.wheelTorque * w.wheelInvInertia * w.wheelRadius * dt;
 					float gndVelL = Math.abs(gndVel);
 					float slipRatio = -0;
 					
+					// low speed slip ratio calculation
+					// low speed defined as below 5 km/h
 					if (gndVelL < 4.2f) {
 						gndVelL = 4.2f;
 					}
 					
-					slipRatio = (wVel-gndVel) / gndVelL * 100.f;
-					slipRatio = MathHelper.clamp(slipRatio, -100.f, 100.f);
+					slipRatio = wAccel / gndVelL * 100.f;
+					slipRatio = MathHelper.clamp(slipRatio, -100.f, 100.f);	// clamp between -100 to 100
+					
+					// prepare some default data
+					float idleLoad = 400.f;	// this is the weight of the wheel itself
+					float maxLoad = 16000.f;	// the tire won't generate any further force beyond this load
+					float rawLoad = Math.min(fSuspensionMag + idleLoad, maxLoad);	// the adjusted load
 					
 					// compute longitudinal force
-					float latLoadScaler = Math.min(2.4f,  vLen / 14.f);	// cap at 2.4x
-					float longLoadScaler = Math.min(2.1f, vLen / 12.f);	// cap at 2x
-					float fLongPMF = MathHelper.pacejkaMFLat(slipRatio, .1f, 1.3f, .95f + latLoadScaler, .2f) * MathHelper.clamp(w.accumN, 400.f, 12500.f);
+					float fLongPMF = MathHelper.pacejkaMFLat(slipRatio, .1f, 1.3f, 2.3f, .2f) * rawLoad;
 					// compute lateral force
-					float fLatPMF =MathHelper.pacejkaMFLat(slipAngle, .2f, 1.4f, .98f + longLoadScaler, .02f) * MathHelper.clamp(w.accumN, 400.f, 12500.f);
-					// let's clamp lateral force?
-					float fMaxLat = Math.abs(vLat) * w.massSide / dt;
-					fLatPMF = MathHelper.clamp(fLatPMF, -fMaxLat, fMaxLat);
+					float fLatPMF =MathHelper.pacejkaMFLat(slipAngle, .15f, 1.6f, 2.5f, .2f) * rawLoad;
 										
+					// the combined force
 					float fCombined = (float) Math.sqrt(fLatPMF*fLatPMF + fLongPMF*fLongPMF);
 					if (w.name == "BR") {
-						System.out.printf("%.4f %.4f %.4f | %.4f %.4f%n", slipRatio, slipAngle, vLen, latLoadScaler, longLoadScaler);
+						System.out.printf("%.4f %.4f %.4f%n", slipRatio, slipAngle, vLen);
 					}
-					// clamp against friction circle?
-					float maxF = fSuspensionMag * (1.f+(longLoadScaler+latLoadScaler)*.5f);
 					
+					// the friction circle in which the forces are
+					// gonna get clamped against
+					float maxF = fSuspensionMag * 2.4f;
+					
+					// prevent divide by zero
 					if (fCombined > 0) {
 						float scale = maxF / fCombined;
 						scale = Math.min(1.f, scale);
