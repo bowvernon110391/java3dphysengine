@@ -17,12 +17,7 @@ public class MathHelper {
 	}
 	
 	public static float pacejkaMFLat(float degSA, float B, float C, float D, float E) {
-		// gotta wrap value around
-		if (degSA > 90.0f)
-			degSA = -180.0f + degSA;
-		if (degSA < -90.0f)
-			degSA = 180.0f + degSA;
-		
+		// gotta wrap value around		
 		float term1 = B * (1-E) * degSA;
 		float term2 = (float) (E * Math.atan(B * degSA));
 		float term3 = (float) (C * Math.atan(term1 + term2));

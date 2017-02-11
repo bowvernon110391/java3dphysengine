@@ -58,8 +58,8 @@ public class AppMain {
 	private boolean useCoreShape = false;
 	
 	private float targetSteer = .0f;
-	private float maxSteer = (float) Math.toRadians(33);	// 33 degree maximum
-	private float steerStrength = .4f;
+	private float maxSteer = (float) Math.toRadians(40);	// 40 degree maximum
+	private float steerStrength = .2f;
 	private float currSteer = .0f;
 	
 	private boolean steerRight = false;
@@ -71,7 +71,7 @@ public class AppMain {
 //	final private ReentrantLock resLock = new ReentrantLock();
 	
 	private float yRot = 40;
-	private float xzRot = 0.0f;
+	private float xzRot = 130.0f;
 	private float dist = 6.0f;
 	private float camStrength = .25f;
 	private float camX, camY, camZ;
@@ -261,7 +261,7 @@ public class AppMain {
 		
 		
 		// setup chassis
-		chassis = new RigidBody(200.f, carChassis);
+		chassis = new RigidBody(2200.f, carChassis);
 		chassis.setRestitution(0.1f);
 		chassis.setContinuous(true);
 		chassis.setCcdRadius(.01f);
@@ -284,7 +284,7 @@ public class AppMain {
 			.setSuspensionLength(.3f)
 			.setRayDir(new Vector3(.0f, -1, .0f))
 			.setRayStart(new Vector3(.795f, .25f, 1.f))
-			.setConstant(.2f, .25f)
+			.setConstant(.2f, .125f)
 			.setName("FL");
 		wheels.addWheel(w);
 		
@@ -294,7 +294,7 @@ public class AppMain {
 			.setSuspensionLength(.3f)
 			.setRayDir(new Vector3(-.0f, -1, .0f))
 			.setRayStart(new Vector3(-.795f, .25f, 1.f))
-			.setConstant(.2f, .25f)
+			.setConstant(.2f, .125f)
 			.setName("FR");
 		wheels.addWheel(w);
 		
@@ -304,7 +304,7 @@ public class AppMain {
 			.setSuspensionLength(.3f)
 			.setRayDir(new Vector3(.0f, -1, 0))
 			.setRayStart(new Vector3(.795f, .35f, -1.f))
-			.setConstant(.2f, .25f)
+			.setConstant(.2f, .125f)
 			.setName("BL");
 		wheels.addWheel(w);
 		
@@ -314,7 +314,7 @@ public class AppMain {
 			.setSuspensionLength(.3f)
 			.setRayDir(new Vector3(-.0f, -1, 0))
 			.setRayStart(new Vector3(-.795f, .35f, -1.f))
-			.setConstant(.2f, .25f)
+			.setConstant(.2f, .125f)
 			.setName("BR");
 		wheels.addWheel(w);
 		
@@ -646,6 +646,9 @@ public class AppMain {
 //		System.out.printf("steer: %.4f%n", currSteer);
 		float torque = .0f;
 		
+		Vector3 fwd = new Vector3(); 
+		Vector3 low = new Vector3(0, -.0f, 0);
+		
 		if (forward) {
 			torque += 1.f;
 		}
@@ -654,7 +657,11 @@ public class AppMain {
 			torque -= 1.1f;
 		}
 		
+		chassis.getRot().transformVector(new Vector3(0,0,torque*10000), fwd);
+		chassis.getRot().transformVector(low, low);
+		
 		synchronized (world) {
+//			chassis.applyForce(fwd);
 			// update the wheel
 			wheels.getWheel(0).setSteerAngle(currSteer);
 			wheels.getWheel(1).setSteerAngle(currSteer);
@@ -687,8 +694,8 @@ public class AppMain {
 			world.step(dt);
 			
 			// check our speed
-			float carSpd = chassis.getVel().length() * 3.6f;
-			System.out.printf("car speed: %.4f km/h%n", carSpd);
+//			float carSpd = chassis.getVel().length() * 3.6f;
+//			System.out.printf("car speed: %.4f km/h%n", carSpd);
 			
 			// now calculate camera
 			Vector3 tPos = chassis.getPos();
