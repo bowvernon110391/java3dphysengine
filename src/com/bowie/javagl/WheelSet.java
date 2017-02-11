@@ -244,7 +244,10 @@ public class WheelSet implements SimForce, Joint {
 					w.accumN = fSuspensionMag;
 					wheelLoad += w.accumN;	// total load for log purpose
 					
-					float slipAngle = (float) Math.toDegrees( Math.atan2(-Vector3.dot(w.rayHitVel, w.rayHitSide), -Vector3.dot(w.rayHitVel, w.rayHitForward)) );
+					float vLat = -Vector3.dot(w.rayHitVel, w.rayHitSide);
+					float vLong = -Vector3.dot(w.rayHitVel, w.rayHitForward);
+					
+					float slipAngle = (float) Math.toDegrees( Math.atan2(vLat, vLong) );
 					float gndVel = -Vector3.dot(w.rayHitForward, w.rayHitVel);
 					float wVel = (w.wheelTorque * w.wheelInvInertia * w.wheelRadius) * dt;
 					float slipRatio;
@@ -257,19 +260,22 @@ public class WheelSet implements SimForce, Joint {
 						slipRatio = 0;
 					
 					// compute longitudinal force
-					float fLongPMF = MathHelper.pacejkaMFLat(slipRatio, .1f, 1.3f, 2.95f, .2f) * MathHelper.clamp(w.accumN, 0.f, 12500.f);
+					float vLen = (float) Math.sqrt(vLong*vLong + vLat*vLat);
+					float latLoadScaler = Math.min(2.4f,  vLen / 20.f);	// cap at 2x
+					float longLoadScaler = Math.min(2.f, vLen / 10.f);
+					float fLongPMF = MathHelper.pacejkaMFLat(slipRatio, .1f, 1.3f, .95f + latLoadScaler, .2f) * MathHelper.clamp(w.accumN, 400.f, 12500.f);
 					// compute lateral force
-					float fLatPMF =MathHelper.pacejkaMFLat(slipAngle, .2f, 1.4f, 2.98f, .02f) * MathHelper.clamp(w.accumN, 0.f, 12500.f);
-//					float fLateralMag = -Vector3.dot(w.rayHitVel, w.rayHitSide) * w.massSide / dt;
-					// clamp to max
-//					fLateralMag = MathHelper.clamp(fLateralMag, -fLatPMF, fLatPMF);
-					
-					
+					float fLatPMF =MathHelper.pacejkaMFLat(slipAngle, .2f, 1.4f, .98f + longLoadScaler, .02f) * MathHelper.clamp(w.accumN, 400.f, 12500.f);
+					// let's clamp lateral force?
+					float fMaxLat = Math.abs(vLat) * w.massSide / dt;
+					fLatPMF = MathHelper.clamp(fLatPMF, -fMaxLat, fMaxLat);
+										
 					float fCombined = (float) Math.sqrt(fLatPMF*fLatPMF + fLongPMF*fLongPMF);
-					if (w.name == "BR") 
-						System.out.printf("%.4f %.4f %.4f%n", fLatPMF, -fLongPMF, fCombined);
+					if (w.name == "BR") {
+						System.out.printf("%.4f %.4f %.4f%n", vLat, vLong, vLen);
+					}
 					// clamp against friction circle?
-					float maxF = fSuspensionMag * 2.7f;
+					float maxF = fSuspensionMag * (1.f+longLoadScaler);
 					
 					if (fCombined > 0) {
 						float scale = maxF / fCombined;
@@ -280,11 +286,17 @@ public class WheelSet implements SimForce, Joint {
 					}
 					
 					// apply it
-					Vector3 fLateral = new Vector3(w.rayHitSide);
-					fLateral.scale(fLatPMF);
-					
-					chassis.applyForce(fLateral, w.rayHitPos);
-					w.groundObj.applyForce(fLateral.inverse(), w.rayHitPos);
+					// it's only valid for high speed cornering
+					w.lowSpeedMode = true;	// assume true
+					w.staticLoad = w.accumN * w.frictionS;	// when speed is low, use this
+					// only apply if speed is > 15 km/h
+					if (vLen > 4.2f) {
+						w.lowSpeedMode = false;
+						Vector3 fLateral = new Vector3(w.rayHitSide);
+						fLateral.scale(fLatPMF);
+						chassis.applyForce(fLateral, w.rayHitPos);
+						w.groundObj.applyForce(fLateral.inverse(), w.rayHitPos);
+					}
 					
 					Vector3 fLong = new Vector3(w.rayHitForward);
 					fLong.scale(-fLongPMF);
@@ -292,65 +304,6 @@ public class WheelSet implements SimForce, Joint {
 					chassis.applyForce(fLong, w.rayHitPos);
 					w.groundObj.applyForce(fLong.inverse(), w.rayHitPos);
 					
-//					// calculate slip angle and slip ratio
-//					float wheelAccel = w.wheelTorque * w.wheelInvInertia * w.wheelRadius * dt;
-//					float groundVel = -Vector3.dot(w.rayHitVel, w.rayHitForward);
-//					
-//					float linAccel = (w.wheelTorque / w.wheelRadius) * w.wheelInvMass * dt;
-//					// slip ratio = wheelAccel / groundVel
-//					if (Math.abs(groundVel) < Vector3.EPSILON)
-//						groundVel = 1000;	// some arbitrary value for initial slip calculation?
-//					float slipRatio = wheelAccel / groundVel * 100;	// wheelaccel represents difference of speed
-//					// slip ratio is symmetrical. Also, cap to 1000%
-//					slipRatio = Math.min(1000, Math.abs(slipRatio));
-//					
-//					// modify collision patch caused by acceleration
-//					w.rayHitVel.x += linAccel * w.rayHitForward.x;
-//					w.rayHitVel.y += linAccel * w.rayHitForward.y;
-//					w.rayHitVel.z += linAccel * w.rayHitForward.z;
-//					
-//					// compute beta
-//					float slipAngle = (float)Math.toDegrees(
-//							Math.atan2(Vector3.dot(w.rayHitVel, w.rayHitSide), -Vector3.dot(w.rayHitVel, w.rayHitForward))
-//							);
-//					slipAngle = slipAngle < -90.f ? 180.f + slipAngle : slipAngle > 90.f ? 180.f - slipAngle : slipAngle;
-//					
-//					if (w.name == "FR")
-//						System.out.printf("slipAngle: %.4f%n", slipAngle);
-//					
-//					// compute limit of longitudinal and lateral forces
-//					float maxLong = Math.abs(MathHelper.pacejkaMFLat(slipRatio, .2f, 1.3f, 1.75f, .2f)) * Math.min(w.accumN, 5500);
-//					float maxLat = Math.abs(MathHelper.pacejkaMFLat(slipAngle, .09f, 2.1f, .75f, .1f)) * Math.min(w.accumN, 4000);
-//					
-//					float combined = (float) Math.sqrt(maxLat * maxLat + maxLong * maxLong);
-//					// prevent division by zero
-//					if (combined > Vector3.EPSILON) {
-//						// make a scale
-//						float cOptimum = 8000.f;
-//						float weightSensitive = .8f;
-//						float scale = ( (w.accumN * weightSensitive) + cOptimum * (1.f - weightSensitive) ) / combined;
-//						scale = scale > 1.f ? 1.f : scale;
-//						// now mix
-//						maxLong *= scale;
-//						maxLat *= scale;
-//					}
-//					
-//					// because friction is solved using impulse, scale it down
-//					w.accumSide = maxLat * dt;
-//					
-//					// now compute longitudinal forces as difference in speed(acceleration) * massForward
-//					float longMag = -(w.wheelTorque * w.wheelInvInertia * w.wheelRadius) * w.massForward / dt;
-//					// cap
-//					longMag = MathHelper.clamp(longMag, -maxLong, maxLong);
-//					// apply
-//					Vector3 fLong = new Vector3(w.rayHitForward);
-//					fLong.scale(longMag);
-//					
-//					chassis.applyForce(fLong, w.rayHitPos);
-//					w.groundObj.applyForce(fLong.inverse(), w.rayHitPos);
-//					
-//					if (w.name == "BR")
-//					System.out.printf("%s sr: %.4f%n", w.name, slipRatio);
 					// finally, we correct velocity in contact
 					// w = v / r
 					float angVel = -Vector3.dot(w.rayHitVel, w.rayHitForward) / w.wheelRadius;
@@ -393,10 +346,35 @@ public class WheelSet implements SimForce, Joint {
 
 	@Override
 	public void preCalculate(float dt, float baumgarte, float slop) {
+		for (RayWheel w : wheels) {
+			w.staticLoad *= dt;	// P = F x dt
+			w.accumSide = 0;	// reset accumulator
+		}
 	}
 
 	@Override
 	public void solve() {
+		for (RayWheel w : wheels) {
+			// don't do shit if not on ground
+			// or is not in low speed mode
+			if (w.groundObj == null || !w.lowSpeedMode)
+				continue;
+			
+			Vector3 vel = new Vector3(chassis.getVelWS(w.rayHitPos), w.groundObj.getVelWS(w.rayHitPos));
+			
+			float pT = -Vector3.dot(vel, w.rayHitSide) * w.massSide;
+			
+			// clamp
+			float dpT = w.accumSide;
+			w.accumSide = MathHelper.clamp(w.accumSide + pT, -w.staticLoad, w.staticLoad);
+			pT = w.accumSide - dpT;
+			
+			Vector3 jT = new Vector3(w.rayHitSide);
+			jT.scale(pT);
+			
+			chassis.applyImpulse(jT, w.rayHitPos);
+			w.groundObj.applyImpulse(jT.inverse(), w.rayHitPos);
+		}
 	}
 
 	@Override

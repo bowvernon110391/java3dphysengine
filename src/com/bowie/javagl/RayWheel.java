@@ -59,6 +59,10 @@ public class RayWheel {
 	// for braking?
 	public float brakeStrength;		// 0% - 100% (100% means wheel lock)
 	
+	// low speed data
+	public float staticLoad;		// the load at static situation
+	public boolean lowSpeedMode;	// switch < 1m/s
+	
 	// constructor
 	public RayWheel(float mass, float radius, float thickness) {
 		// simple constructor

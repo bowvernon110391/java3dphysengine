@@ -176,8 +176,8 @@ public class AppMain {
 				
 				new Vector3(-.875f,  .8f,-1.7f),	// 
 				new Vector3( .875f,  .8f,-1.7f),
-				new Vector3( .875f,  .6f, 1.15f),
-				new Vector3(-.875f,  .6f, 1.15f),
+				new Vector3( .875f,  .5f, 1.15f),
+				new Vector3(-.875f,  .5f, 1.15f),
 		};
 		
 		int [][] chassis_faces = new int[][]{
@@ -284,7 +284,7 @@ public class AppMain {
 			.setSuspensionLength(.3f)
 			.setRayDir(new Vector3(.0f, -1, .0f))
 			.setRayStart(new Vector3(.795f, .25f, 1.f))
-			.setConstant(.2f, .125f)
+			.setConstant(.21f, .35f)
 			.setName("FL");
 		wheels.addWheel(w);
 		
@@ -294,7 +294,7 @@ public class AppMain {
 			.setSuspensionLength(.3f)
 			.setRayDir(new Vector3(-.0f, -1, .0f))
 			.setRayStart(new Vector3(-.795f, .25f, 1.f))
-			.setConstant(.2f, .125f)
+			.setConstant(.21f, .35f)
 			.setName("FR");
 		wheels.addWheel(w);
 		
@@ -304,7 +304,7 @@ public class AppMain {
 			.setSuspensionLength(.3f)
 			.setRayDir(new Vector3(.0f, -1, 0))
 			.setRayStart(new Vector3(.795f, .35f, -1.f))
-			.setConstant(.2f, .125f)
+			.setConstant(.21f, .31f)
 			.setName("BL");
 		wheels.addWheel(w);
 		
@@ -314,7 +314,7 @@ public class AppMain {
 			.setSuspensionLength(.3f)
 			.setRayDir(new Vector3(-.0f, -1, 0))
 			.setRayStart(new Vector3(-.795f, .35f, -1.f))
-			.setConstant(.2f, .125f)
+			.setConstant(.21f, .31f)
 			.setName("BR");
 		wheels.addWheel(w);
 		
