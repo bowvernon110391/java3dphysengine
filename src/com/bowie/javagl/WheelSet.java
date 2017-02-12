@@ -271,10 +271,10 @@ public class WheelSet implements SimForce, Joint {
 					// compute slip angle
 					float slipAngle = (float) Math.toDegrees( Math.atan2(vLat, vLong) );
 //					slipAngle = slipAngle < -90.f ? slipAngle + 180.f : slipAngle > 90.f ? slipAngle - 180.f : slipAngle;
-					if (slipAngle > 90.f)
-						slipAngle -= 90.f;
-					else if (slipAngle < -90.f)
-						slipAngle += 90.f;
+//					if (slipAngle > 90.f)
+//						slipAngle -= 90.f;
+//					else if (slipAngle < -90.f)
+//						slipAngle += 90.f;
 					
 					
 					// prepare some default data
@@ -309,20 +309,17 @@ public class WheelSet implements SimForce, Joint {
 					// apply it
 					// it's only valid for high speed cornering
 					w.lowSpeedMode = true;	// assume true
-					w.staticLoad = maxF;	// when speed is low, use this
+					w.staticLoadLat = maxF;	// when speed is low, use this
+					w.bLateral = 0;
+					
+					// let's try to clamp lateral friction (so as not to change sign)
+//					float maxLateral = Math.abs(vLat * w.massSide) /dt;
+//					fLatPMF = MathHelper.clamp(fLatPMF, -maxLateral, maxLateral);
 					// only apply if speed is > 15 km/h
 					if (vLen > 4.2f) {
 						if (!useLateralImpulse) {
 							// not using impulse, use force instead
-							w.lowSpeedMode = false;
-							
-							// must be careful as to not make it change sign
-							float maxLateral = Math.abs(vLat * w.massSide) /dt;
-							
-//							if (w.name == "BR")
-//							System.out.printf("fLat: %.2f maxLat: %.2f %n", fLatPMF, maxLateral);
-							
-							fLatPMF = MathHelper.clamp(fLatPMF, -maxLateral, maxLateral);
+							w.lowSpeedMode = false;	// disable lowSpeedMode
 							
 							Vector3 fLateral = new Vector3(w.rayHitSide);
 							fLateral.scale(fLatPMF);
@@ -330,7 +327,12 @@ public class WheelSet implements SimForce, Joint {
 							w.groundObj.applyForce(fLateral.inverse(), w.rayHitPos);
 						} else {
 							// use impulse. set static load as max lateral force
-							w.staticLoad = Math.abs(fLatPMF);
+							float targetAccel = fLatPMF / w.massSide;
+							w.bLateral = 0;	// our target is to zero out the lateral velocity
+							w.staticLoadLat = Math.abs(fLatPMF);	// this will be our limiter
+							/*if (w.name == "BR") {
+							System.out.printf("%s. vlat: %.2f target: %.2f%n", w.name, vLat, w.bLateral);
+						}*/
 						}
 //						
 					}
@@ -384,7 +386,7 @@ public class WheelSet implements SimForce, Joint {
 	@Override
 	public void preCalculate(float dt, float baumgarte, float slop) {
 		for (RayWheel w : wheels) {
-			w.staticLoad *= dt;	// P = F x dt
+			w.staticLoadLat *= dt;	// P = F x dt
 			w.accumSide = 0;	// reset accumulator
 		}
 	}
@@ -399,11 +401,11 @@ public class WheelSet implements SimForce, Joint {
 			
 			Vector3 vel = new Vector3(chassis.getVelWS(w.rayHitPos), w.groundObj.getVelWS(w.rayHitPos));
 			
-			float pT = -Vector3.dot(vel, w.rayHitSide) * w.massSide;
+			float pT = (-Vector3.dot(vel, w.rayHitSide) + w.bLateral) * w.massSide;
 			
 			// clamp
 			float dpT = w.accumSide;
-			w.accumSide = MathHelper.clamp(w.accumSide + pT, -w.staticLoad, w.staticLoad);
+			w.accumSide = MathHelper.clamp(w.accumSide + pT, -w.staticLoadLat, w.staticLoadLat);
 			pT = w.accumSide - dpT;
 			
 			Vector3 jT = new Vector3(w.rayHitSide);
@@ -419,7 +421,7 @@ public class WheelSet implements SimForce, Joint {
 		// check if it converged
 		for (RayWheel w : wheels) {
 			if (w.name == "BR" && w.groundObj != null && useLateralImpulse) {
-				System.out.printf("p: %.2f acc: %.2f%n", w.staticLoad, w.accumSide);
+				System.out.printf("p: %.2f acc: %.2f%n", w.staticLoadLat, w.accumSide);
 			}
 		}
 	}

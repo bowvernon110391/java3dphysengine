@@ -190,8 +190,8 @@ public class AppMain {
 		};
 		
 		float halfRampW = 4;
-		float rampH = 2;
-		float halfRampD = 6;
+		float rampH = 1.5f;
+		float halfRampD = 4;
 		
 		Vector3 [] ramp_vertex = new Vector3[]{
 				new Vector3(-halfRampW, 0, halfRampD),
@@ -212,6 +212,30 @@ public class AppMain {
 				{2, 3, 4, 5}
 		};
 		
+		float topPadHalfW = 2.f;
+		float btmPadHalfW = 5.f;
+		float topPadHalfH = 4.f;
+		float btmPadHalfH = 8.f;
+		float padHeight = 1.5f;
+		
+		Vector3 [] jumppad_vertex = new Vector3[]{
+				new Vector3(-btmPadHalfW, 0, -btmPadHalfH),
+				new Vector3(-btmPadHalfW, 0,  btmPadHalfH),
+				new Vector3( btmPadHalfW, 0,  btmPadHalfH),
+				new Vector3( btmPadHalfW, 0, -btmPadHalfH),
+				
+				new Vector3( -topPadHalfW, padHeight, 0),
+				new Vector3( topPadHalfW, padHeight, 0)
+		};
+		
+		int [][] jumppad_indices = new int[][]{
+				{0, 3, 2, 1},
+				{0, 1, 4},
+				{2, 3, 5},
+				{1, 2, 5, 4},
+				{0, 4, 5, 3}
+		};
+		
 		world.setAngularDamping(.085f);
 		world.setLinearDamping(.075f);
 		
@@ -224,7 +248,7 @@ public class AppMain {
 		world.registerContactGenerator(Shape.SHAPE_CORE, Shape.SHAPE_CORE, new CoreShapesContactGenerator());
 		
 		// a collections of shape
-		Shape box1, cylinder,cone,box2,xbox,ybox,zbox, carChassis, ramp;
+		Shape box1, cylinder,cone,box2,xbox,ybox,zbox, carChassis, ramp, jumppad;
 		// no-core version
 		if (!useCoreShape) {
 			box1 = new Box(2, .75f, 2.5f);
@@ -241,6 +265,7 @@ public class AppMain {
 			carChassis = new Convex(chassis_vertex, chassis_faces);
 			
 			ramp = new Convex(ramp_vertex, ramp_faces);
+			jumppad = new Convex(jumppad_vertex, jumppad_indices);
 		} else {
 			// core version
 			box1 = new CoreShape(new Box(2, .75f, 2.5f), .1f);
@@ -256,6 +281,7 @@ public class AppMain {
 			carChassis = new CoreShape(new Convex(chassis_vertex, chassis_faces), .1f);
 			
 			ramp = new CoreShape(new Convex(ramp_vertex, ramp_faces), .05f);
+			jumppad = new CoreShape(new Convex(jumppad_vertex, jumppad_indices), .05f);
 		}
 		
 		
@@ -354,7 +380,7 @@ public class AppMain {
 	
 		// let's add joints between car chassis and cart
 		BallJoint jBall = new BallJoint(chassis, new Vector3(0,0,-1.85f), cart, new Vector3(0,-.375f,1.85f));
-		world.addJoint(jBall);
+//		world.addJoint(jBall);
 		
 		// build world boundaries		
 		
@@ -445,7 +471,12 @@ public class AppMain {
 		int nRamp = (int) MathHelper.randomRanged(2, 20);
 		float rampY = -1.6f;	// should be 1.5f but allow small sink
 		for (int i=0; i<nRamp; i++) {
-			RigidBody b = new RigidBody(-1.f, ramp);
+			Shape s = ramp;
+			
+			if (MathHelper.randomRanged(0, 10) > 8)
+				s = jumppad;
+			
+			RigidBody b = new RigidBody(-1.f, s);
 			b.setFixed(true);
 			b.setRestitution(0.2f);
 			b.setFriction(.2f);

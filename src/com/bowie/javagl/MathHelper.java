@@ -64,7 +64,9 @@ public class MathHelper {
 //			System.out.printf("o -> %.4f %.4f %4f%n", tmpPt.x, tmpPt.y, tmpPt.z);
 			int i=0;
 			float maxD = m * 2;
-			while (maxD+m > Vector3.EPSILON) {
+			int iterMax = 200;
+			int iterCnt = 0;
+			while (maxD+m > Vector3.EPSILON || iterCnt++ < iterMax) {
 				int pol_id = 0;
 				for (Polygon pol : faces) {
 					// push back along face

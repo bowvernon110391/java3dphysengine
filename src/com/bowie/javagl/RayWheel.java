@@ -60,8 +60,10 @@ public class RayWheel {
 	public float brakeStrength;		// 0% - 100% (100% means wheel lock)
 	
 	// low speed data
-	public float staticLoad;		// the load at static situation
+	public float staticLoadLat;		// the load at static situation (for lateral forces)
 	public boolean lowSpeedMode;	// switch < 1m/s
+	
+	public float bLateral;	// lateral bias
 	
 	// constructor
 	public RayWheel(float mass, float radius, float thickness) {
