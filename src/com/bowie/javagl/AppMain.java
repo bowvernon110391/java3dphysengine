@@ -284,7 +284,7 @@ public class AppMain {
 			.setSuspensionLength(.33f)
 			.setRayDir(new Vector3(.0f, -1, .0f))
 			.setRayStart(new Vector3(.795f, .25f, 1.f))
-			.setConstant(.421f, .06f)
+			.setConstant(.51f, .0516f)
 			.setName("FL");
 		wheels.addWheel(w);
 		
@@ -294,7 +294,7 @@ public class AppMain {
 			.setSuspensionLength(.33f)
 			.setRayDir(new Vector3(-.0f, -1, .0f))
 			.setRayStart(new Vector3(-.795f, .25f, 1.f))
-			.setConstant(.421f, .06f)
+			.setConstant(.51f, .0516f)
 			.setName("FR");
 		wheels.addWheel(w);
 		
@@ -304,7 +304,7 @@ public class AppMain {
 			.setSuspensionLength(.33f)
 			.setRayDir(new Vector3(.0f, -1, 0))
 			.setRayStart(new Vector3(.795f, .35f, -1.f))
-			.setConstant(.421f, .04f)
+			.setConstant(.51f, .0514f)
 			.setName("BL");
 		wheels.addWheel(w);
 		
@@ -314,13 +314,47 @@ public class AppMain {
 			.setSuspensionLength(.33f)
 			.setRayDir(new Vector3(-.0f, -1, 0))
 			.setRayStart(new Vector3(-.795f, .35f, -1.f))
-			.setConstant(.421f, .04f)
+			.setConstant(.51f, .0514f)
 			.setName("BR");
 		wheels.addWheel(w);
 		
 		// add wheelset + chassis to engine
 		world.addSimForce(wheels);
 		world.addJoint(wheels);
+		
+		// now let's add some more
+		RigidBody cart = new RigidBody(150.f, box1);
+		cart.setPos(new Vector3(2, -1, -2));
+		cart.setRestitution(0.7f);
+		cart.setFriction(.14f);
+		
+		world.addBody(cart);
+		WheelSet cartWheels = new WheelSet(cart).setWorld(world);
+		
+		w = new RayWheel(25.f, .3f, .15f)
+			.setFriction(.8f, .2f)
+			.setSuspensionLength(.5f)
+			.setRayDir(new Vector3(0,-1,0))
+			.setRayStart(new Vector3(-1, .2f, 0))
+			.setConstant(.2f, .15f)
+			.setName("BR");
+		cartWheels.addWheel(w);
+		
+		w = new RayWheel(25.f, .3f, .15f)
+			.setFriction(.8f, .2f)
+			.setSuspensionLength(.5f)
+			.setRayDir(new Vector3(0,-1,0))
+			.setRayStart(new Vector3(1, .2f, 0))
+			.setConstant(.2f, .15f)
+			.setName("BL");
+		cartWheels.addWheel(w);
+	
+		world.addSimForce(cartWheels);
+		world.addJoint(cartWheels);
+	
+		// let's add joints between car chassis and cart
+		BallJoint jBall = new BallJoint(chassis, new Vector3(0,0,-1.85f), cart, new Vector3(0,-.375f,1.85f));
+		world.addJoint(jBall);
 		
 		// build world boundaries		
 		
@@ -484,8 +518,6 @@ public class AppMain {
 //		camY += camVY * dt;
 //		camZ += camVZ * dt;
 		
-		dt=0.f;
-		
 		// start rendering
 		gl.glClear(GL2.GL_COLOR_BUFFER_BIT|GL2.GL_DEPTH_BUFFER_BIT);
 		
@@ -504,7 +536,11 @@ public class AppMain {
 			glu.gluLookAt(camX, camY, camZ, camTX, camTY, camTZ, 0, 1, 0);
 			
 			world.debugDraw(gl, drawContacts, drawContactN, drawContactT, drawBBox, 0);
-			wheels.debugDraw(gl, 0);
+//			wheels.debugDraw(gl, 0);
+			
+//			if (WheelSet.useLateralImpulse) {
+//				chassis.debugDraw(gl, dt);
+//			}
 		}
 	}
 	
@@ -520,6 +556,10 @@ public class AppMain {
 			break;
 		case KeyEvent.VK_RIGHT:
 			steerRight = true;
+			break;
+			
+		case KeyEvent.VK_P:
+			WheelSet.useLateralImpulse = !WheelSet.useLateralImpulse;
 			break;
 			
 		case KeyEvent.VK_1:
@@ -669,7 +709,7 @@ public class AppMain {
 			// apply driving force on back wheels
 			float frontBrake = 0.4f;
 			float rearBrake = 1.f - frontBrake;
-			float torquePerSec = 350.0f - (wheels.getWheel(2).wheelAngVel + wheels.getWheel(3).wheelAngVel) * .5f;
+			float torquePerSec = 650.0f - (wheels.getWheel(2).wheelAngVel + wheels.getWheel(3).wheelAngVel) * .5f;
 			torquePerSec = torquePerSec < 0 ? 0 : torquePerSec;
 			// if braking
 			if (torque < 0.0f) {

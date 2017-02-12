@@ -359,7 +359,7 @@ public class Physics {
 		
 		
 		for (Joint j : joints) {
-			j.debugDraw(gl);
+			j.debugDraw(gl, dt);
 		}
 		
 	}

@@ -25,7 +25,7 @@ public interface Joint {
 	 * general purpose render function for debugging purpose
 	 * @param gl	- the opengl handle
 	 */
-	public void debugDraw(GL2 gl);
+	public void debugDraw(GL2 gl, float dt);
 	
 	/**
 	 * this is because we use different approach for solving positional drift

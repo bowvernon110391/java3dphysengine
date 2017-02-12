@@ -75,6 +75,9 @@ public class BallJoint implements Joint {
 		// now, apply old impulse
 		bodyA.applyImpulse(accumP, worldA);
 		bodyB.applyImpulse(accumP.inverse(), worldB);
+		
+		// zero out?
+//		accumP.setTo(Vector3.ZERO);
 	}
 
 	@Override
@@ -94,7 +97,10 @@ public class BallJoint implements Joint {
 	}
 
 	@Override
-	public void debugDraw(GL2 gl) {
+	public void debugDraw(GL2 gl, float dt) {
+		// transform?
+		worldA = bodyA.toWorld(localA);
+		worldB = bodyB.toWorld(localB);
 		// draw points first
 		gl.glBegin(GL2.GL_POINTS);
 		// 1st on bodyA

@@ -72,7 +72,7 @@ public class WorldPinJoint implements Joint {
 	}
 
 	@Override
-	public void debugDraw(GL2 gl) {
+	public void debugDraw(GL2 gl, float dt) {
 		// draw both point in red and blue
 		Vector3 worldBodyPos = body.toWorld(bodyLocalPos);
 		gl.glBegin(GL2.GL_POINTS);

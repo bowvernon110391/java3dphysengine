@@ -89,7 +89,7 @@ public class DistanceJoint implements Joint {
 	}
 
 	@Override
-	public void debugDraw(GL2 gl) {
+	public void debugDraw(GL2 gl, float dt) {
 		gl.glBegin(GL2.GL_POINTS);
 			gl.glColor3f(1, 0.5f, 0.2f);
 			gl.glVertex3f(worldA.x, worldA.y, worldA.z);

@@ -12,6 +12,8 @@ import com.sun.xml.internal.bind.v2.runtime.Name;
  *
  */
 public class WheelSet implements SimForce, Joint {
+	public static boolean useLateralImpulse = false;
+	
 	public class RayHitData {
 		public RayHitData(Vector3 hitPos, Vector3 hitNormal, float t) {
 			hitP = new Vector3(hitPos);
@@ -244,17 +246,16 @@ public class WheelSet implements SimForce, Joint {
 					w.accumN = fSuspensionMag;
 					wheelLoad += w.accumN;	// total load for log purpose
 					
+					// compute linear acceleration caused by wheel torque
+					float wAccel = w.wheelTorque * w.wheelInvInertia * w.wheelRadius * dt;
+					
 					float vLat = -Vector3.dot(w.rayHitVel, w.rayHitSide);
 					float vLong = -Vector3.dot(w.rayHitVel, w.rayHitForward);
 					float vLen = (float) Math.sqrt(vLong*vLong + vLat*vLat);
 					
-					// compute slip angle
-					float slipAngle = (float) Math.toDegrees( Math.atan2(vLat, vLong) );
-					
 					// compute slip ratio
 					float gndVel = -Vector3.dot(w.rayHitForward, w.rayHitVel);		// ground velocity
 					float wVel = w.wheelAngVel * w.wheelRadius;	// wheel velocity
-					float wAccel = w.wheelTorque * w.wheelInvInertia * w.wheelRadius * dt;
 					float gndVelL = Math.abs(gndVel);
 					float slipRatio = -0;
 					
@@ -266,6 +267,15 @@ public class WheelSet implements SimForce, Joint {
 					
 					slipRatio = wAccel / gndVelL * 100.f;
 					slipRatio = MathHelper.clamp(slipRatio, -100.f, 100.f);	// clamp between -100 to 100
+					
+					// compute slip angle
+					float slipAngle = (float) Math.toDegrees( Math.atan2(vLat, vLong) );
+//					slipAngle = slipAngle < -90.f ? slipAngle + 180.f : slipAngle > 90.f ? slipAngle - 180.f : slipAngle;
+					if (slipAngle > 90.f)
+						slipAngle -= 90.f;
+					else if (slipAngle < -90.f)
+						slipAngle += 90.f;
+					
 					
 					// prepare some default data
 					float idleLoad = 400.f;	// this is the weight of the wheel itself
@@ -302,11 +312,27 @@ public class WheelSet implements SimForce, Joint {
 					w.staticLoad = maxF;	// when speed is low, use this
 					// only apply if speed is > 15 km/h
 					if (vLen > 4.2f) {
-						w.lowSpeedMode = false;
-						Vector3 fLateral = new Vector3(w.rayHitSide);
-						fLateral.scale(fLatPMF);
-						chassis.applyForce(fLateral, w.rayHitPos);
-						w.groundObj.applyForce(fLateral.inverse(), w.rayHitPos);
+						if (!useLateralImpulse) {
+							// not using impulse, use force instead
+							w.lowSpeedMode = false;
+							
+							// must be careful as to not make it change sign
+							float maxLateral = Math.abs(vLat * w.massSide) /dt;
+							
+//							if (w.name == "BR")
+//							System.out.printf("fLat: %.2f maxLat: %.2f %n", fLatPMF, maxLateral);
+							
+							fLatPMF = MathHelper.clamp(fLatPMF, -maxLateral, maxLateral);
+							
+							Vector3 fLateral = new Vector3(w.rayHitSide);
+							fLateral.scale(fLatPMF);
+							chassis.applyForce(fLateral, w.rayHitPos);
+							w.groundObj.applyForce(fLateral.inverse(), w.rayHitPos);
+						} else {
+							// use impulse. set static load as max lateral force
+							w.staticLoad = Math.abs(fLatPMF);
+						}
+//						
 					}
 					
 					Vector3 fLong = new Vector3(w.rayHitForward);
@@ -389,13 +415,13 @@ public class WheelSet implements SimForce, Joint {
 	}
 
 	@Override
-	public void debugDraw(GL2 gl) {
-		// TODO Auto-generated method stub
-		
-	}
-
-	@Override
 	public void positionSolve() {
+		// check if it converged
+		for (RayWheel w : wheels) {
+			if (w.name == "BR" && w.groundObj != null && useLateralImpulse) {
+				System.out.printf("p: %.2f acc: %.2f%n", w.staticLoad, w.accumSide);
+			}
+		}
 	}
 
 	
