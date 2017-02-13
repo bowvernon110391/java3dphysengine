@@ -13,6 +13,7 @@ import com.sun.xml.internal.bind.v2.runtime.Name;
  */
 public class WheelSet implements SimForce, Joint {
 	public static boolean useLateralImpulse = false;
+	public static boolean useLongitudinalImpulse = false;
 	
 	public class RayHitData {
 		public RayHitData(Vector3 hitPos, Vector3 hitNormal, float t) {
@@ -154,7 +155,6 @@ public class WheelSet implements SimForce, Joint {
 					w.rayHitSide.normalize();
 					
 					// grab velocity @ contact point
-//					Vector3.sub(w.getVelWS(chassis, w.rayHitPos), w.groundObj.getVelWS(w.rayHitPos), w.rayHitVel);
 					Vector3.sub(chassis.getVelWS(w.rayHitPos), w.groundObj.getVelWS(w.rayHitPos), w.rayHitVel);
 					
 					// calculate position error (scaled)
@@ -231,19 +231,29 @@ public class WheelSet implements SimForce, Joint {
 			float wheelLoad = 0.0f;
 			for (RayWheel w : wheels) {
 				if (w.groundObj != null) {
+					// WAIT!!! gotta check if the suspension is hit to the max
+					float normScale = -Vector3.dot(w.absRayDir, w.rayHitNormal);
+					float rad = w.minSuspensionLength - (w.rayT * (w.suspensionLength + w.wheelRadius) - w.wheelRadius);
+					rad = Math.max(rad * normScale, 0);
+					if (rad > 0) {
+						// we collapse the suspension successfully :(
+						System.out.printf("%s collapsed!! %.2f%n", w.name, rad);
+					}
+					float fHardPush = w.massN / (dt*dt) * rad * .8f;
 					// compute suspension forces
-					float fSuspensionMag = (w.constK * w.posError + w.constD * w.springSpd);
-					fSuspensionMag = Math.max(0, fSuspensionMag);
+					float fSuspensionMag = (w.constK * w.posError + w.constD * w.springSpd) + fHardPush;
+					fSuspensionMag = Math.max(0, fSuspensionMag);	// suspension only push, not pull
 					
 					Vector3 fSuspension = new Vector3(w.rayHitNormal);
 					fSuspension.scale(fSuspensionMag);
+//					fSuspensionMag = Math.max(0,  fSuspensionMag);	// for weight calculation, clamp to zero
 					
 					// apply it if ground and chassis aren't sleeping
 					chassis.applyForce(fSuspension, w.rayHitPos);
 					w.groundObj.applyForce(fSuspension.inverse(), w.rayHitPos);
 					
 					// compute load for the wheel
-					w.accumN = fSuspensionMag;
+					w.accumN = fSuspensionMag;	// the load for that wheel is the suspension force
 					wheelLoad += w.accumN;	// total load for log purpose
 					
 					// compute linear acceleration caused by wheel torque
@@ -285,21 +295,22 @@ public class WheelSet implements SimForce, Joint {
 					// compute longitudinal force
 					float fLongPMF = MathHelper.pacejkaMFLat(slipRatio, .1f, 1.3f, 2.3f, .2f) * rawLoad;
 					// compute lateral force
-					float fLatPMF =MathHelper.pacejkaMFLat(slipAngle, .15f, 1.6f, 2.5f, .2f) * rawLoad;
+					float fLatPMF = MathHelper.pacejkaMFLat(slipAngle, .15f, 1.6f, 2.5f, .2f) * rawLoad;
 										
 					// the combined force
 					float fCombined = (float) Math.sqrt(fLatPMF*fLatPMF + fLongPMF*fLongPMF);
-					if (w.name == "BR") {
-						System.out.printf("%.4f %.4f %.4f%n", slipRatio, slipAngle, vLen);
-					}
+//					if (w.name == "BR") {
+//						System.out.printf("%.4f %.4f %.4f%n", slipRatio, slipAngle, vLen);
+//					}
 					
 					// the friction circle in which the forces are
 					// gonna get clamped against
-					float maxF = fSuspensionMag * 2.4f;
+					float maxLateralForce = fSuspensionMag * 2.4f;
+					float maxLongitudinalForce = fSuspensionMag * 2.4f;
 					
 					// prevent divide by zero
 					if (fCombined > 0) {
-						float scale = maxF / fCombined;
+						float scale = maxLateralForce / fCombined;
 						scale = Math.min(1.f, scale);
 						
 						fLatPMF *= scale;
@@ -309,7 +320,8 @@ public class WheelSet implements SimForce, Joint {
 					// apply it
 					// it's only valid for high speed cornering
 					w.lowSpeedMode = true;	// assume true
-					w.staticLoadLat = maxF;	// when speed is low, use this
+//					w.staticLoadLat = fSuspensionMag * w.frictionS;
+					w.staticLoadLat = maxLateralForce;	// when speed is low, use this
 					w.bLateral = 0;
 					
 					// let's try to clamp lateral friction (so as not to change sign)
@@ -337,11 +349,33 @@ public class WheelSet implements SimForce, Joint {
 //						
 					}
 					
-					Vector3 fLong = new Vector3(w.rayHitForward);
-					fLong.scale(-fLongPMF);
+					// special case must be handled when wheel are locked
+					w.lockWheelMode = false;
+					if (Math.abs(w.brakeStrength) > Vector3.EPSILON && vLen < 1.f) {
+						// when braking at low speed, we treat it as wheel locking	
+						w.lockWheelMode = true;
+						
+						// compute shit
+						float targetVel = 0;	// we're breaking
+						w.bLongitudinal = targetVel;	// set target velocity to zero
+						w.staticLoadLong = maxLongitudinalForce * w.brakeStrength;
+//						w.staticLoadLong = fSuspensionMag * w.frictionS;
+					}
 					
-					chassis.applyForce(fLong, w.rayHitPos);
-					w.groundObj.applyForce(fLong.inverse(), w.rayHitPos);
+					// we apply longitudinal force if we're not using impulse and is not in locked wheel mode
+					if (!useLongitudinalImpulse && !w.lockWheelMode) {
+						// only do this if long impulse is not used
+						Vector3 fLong = new Vector3(w.rayHitForward);
+						fLong.scale(-fLongPMF);
+						
+						chassis.applyForce(fLong, w.rayHitPos);
+						w.groundObj.applyForce(fLong.inverse(), w.rayHitPos);
+					} else if (!w.lockWheelMode) {
+						// use it if we're not locking wheel
+						float targetVel = vLong + (fLongPMF / w.massForward);
+						w.bLongitudinal = targetVel;
+						w.staticLoadLong = Math.abs(fLongPMF);
+					}
 					
 					// finally, we correct velocity in contact
 					// w = v / r
@@ -387,7 +421,9 @@ public class WheelSet implements SimForce, Joint {
 	public void preCalculate(float dt, float baumgarte, float slop) {
 		for (RayWheel w : wheels) {
 			w.staticLoadLat *= dt;	// P = F x dt
+			w.staticLoadLong *= dt;	// P = F x dt
 			w.accumSide = 0;	// reset accumulator
+			w.accumForward = 0;	// reset accumulator
 		}
 	}
 
@@ -396,34 +432,56 @@ public class WheelSet implements SimForce, Joint {
 		for (RayWheel w : wheels) {
 			// don't do shit if not on ground
 			// or is not in low speed mode
-			if (w.groundObj == null || !w.lowSpeedMode)
+			if (w.groundObj == null)
 				continue;
 			
-			Vector3 vel = new Vector3(chassis.getVelWS(w.rayHitPos), w.groundObj.getVelWS(w.rayHitPos));
+			// lateral impulse only performed if we're using it or is in low speed mode
+			if (useLateralImpulse || w.lowSpeedMode) {
+				Vector3 vel = new Vector3(chassis.getVelWS(w.rayHitPos), w.groundObj.getVelWS(w.rayHitPos));
+				
+				float pT = (-Vector3.dot(vel, w.rayHitSide) + w.bLateral) * w.massSide;
+				
+				// clamp
+				float dpT = w.accumSide;
+				w.accumSide = MathHelper.clamp(w.accumSide + pT, -w.staticLoadLat, w.staticLoadLat);
+				pT = w.accumSide - dpT;
+				
+				Vector3 jT = new Vector3(w.rayHitSide);
+				jT.scale(pT);
+				
+				chassis.applyImpulse(jT, w.rayHitPos);
+				w.groundObj.applyImpulse(jT.inverse(), w.rayHitPos);
+			}
 			
-			float pT = (-Vector3.dot(vel, w.rayHitSide) + w.bLateral) * w.massSide;
+			// if we're using longitudinal impulse, do it
+			if (useLongitudinalImpulse || w.lockWheelMode) {
+				Vector3 vel = new Vector3(chassis.getVelWS(w.rayHitPos), w.groundObj.getVelWS(w.rayHitPos));
+				
+				float pT = (-Vector3.dot(vel, w.rayHitForward) - w.bLongitudinal) * w.massForward;
+				
+				// clamp
+				float dpT = w.accumForward;
+				w.accumForward = MathHelper.clamp(w.accumForward + pT, -w.staticLoadLong, w.staticLoadLong);
+				pT = w.accumForward - dpT;
+				
+				Vector3 jT = new Vector3(w.rayHitForward);
+				jT.scale(pT);
+				
+				chassis.applyImpulse(jT, w.rayHitPos);
+				w.groundObj.applyImpulse(jT.inverse(), w.rayHitPos);
+			}
 			
-			// clamp
-			float dpT = w.accumSide;
-			w.accumSide = MathHelper.clamp(w.accumSide + pT, -w.staticLoadLat, w.staticLoadLat);
-			pT = w.accumSide - dpT;
-			
-			Vector3 jT = new Vector3(w.rayHitSide);
-			jT.scale(pT);
-			
-			chassis.applyImpulse(jT, w.rayHitPos);
-			w.groundObj.applyImpulse(jT.inverse(), w.rayHitPos);
 		}
 	}
 
 	@Override
 	public void positionSolve() {
 		// check if it converged
-		for (RayWheel w : wheels) {
+		/*for (RayWheel w : wheels) {
 			if (w.name == "BR" && w.groundObj != null && useLateralImpulse) {
 				System.out.printf("p: %.2f acc: %.2f%n", w.staticLoadLat, w.accumSide);
 			}
-		}
+		}*/
 	}
 
 	

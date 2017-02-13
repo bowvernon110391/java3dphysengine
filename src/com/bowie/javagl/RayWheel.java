@@ -51,6 +51,7 @@ public class RayWheel {
 	
 	// static data
 	public float suspensionLength;			// together form the ray length
+	public float minSuspensionLength;		// the maximum compressed length of suspension
 	public float kDampRatio, kStrength;	// the spring frequency and damping constant
 	
 	// calculated data
@@ -61,9 +62,12 @@ public class RayWheel {
 	
 	// low speed data
 	public float staticLoadLat;		// the load at static situation (for lateral forces)
+	public float staticLoadLong;	// max longitudinal force
 	public boolean lowSpeedMode;	// switch < 1m/s
+	public boolean lockWheelMode;	// when braking and v < 1m/s
 	
 	public float bLateral;	// lateral bias
+	public float bLongitudinal;	// longitudinal bias
 	
 	// constructor
 	public RayWheel(float mass, float radius, float thickness) {
@@ -128,8 +132,9 @@ public class RayWheel {
 		return this;
 	}
 	
-	public RayWheel setSuspensionLength(float l) {
+	public RayWheel setSuspensionLength(float l, float minL) {
 		this.suspensionLength = l;
+		this.minSuspensionLength = minL;
 		return this;
 	}
 	

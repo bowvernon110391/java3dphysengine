@@ -37,6 +37,7 @@ public class AppMain {
 	
 	private float fov = 80.0f;
 	private Matrix4 matPers = new Matrix4();
+	private Matrix4 matOrtho = new Matrix4();
 	
 	private Physics world = new Physics(7, 5, .04f, .3f);
 	private RigidBody bomb;
@@ -77,6 +78,8 @@ public class AppMain {
 	private float camX, camY, camZ;
 	private float camTX, camTY, camTZ;
 	private float camVX, camVY, camVZ;
+	
+	private int screenW, screenH;
 	
 	final private float maxYRot = 89.0f;
 	final private float minDist = 1.0f;
@@ -307,40 +310,40 @@ public class AppMain {
 		// front left
 		w = new RayWheel(25.f, .3f, .25f)
 			.setFriction(.75f, .1f)
-			.setSuspensionLength(.33f)
+			.setSuspensionLength(.33f, .12f)
 			.setRayDir(new Vector3(.0f, -1, .0f))
 			.setRayStart(new Vector3(.795f, .25f, 1.f))
-			.setConstant(.51f, .0516f)
+			.setConstant(0.25f , .052f)
 			.setName("FL");
 		wheels.addWheel(w);
 		
 		// front right
 		w = new RayWheel(25.f, .3f, .25f)
 			.setFriction(.75f, .1f)
-			.setSuspensionLength(.33f)
+			.setSuspensionLength(.33f, .12f)
 			.setRayDir(new Vector3(-.0f, -1, .0f))
 			.setRayStart(new Vector3(-.795f, .25f, 1.f))
-			.setConstant(.51f, .0516f)
+			.setConstant(0.25f , .052f)
 			.setName("FR");
 		wheels.addWheel(w);
 		
 		// back left
 		w = new RayWheel(30.f, .35f, .25f)
 			.setFriction(.75f, .1f)
-			.setSuspensionLength(.33f)
+			.setSuspensionLength(.53f, .22f)
 			.setRayDir(new Vector3(.0f, -1, 0))
 			.setRayStart(new Vector3(.795f, .35f, -1.f))
-			.setConstant(.51f, .0514f)
+			.setConstant(0.25f , .032f)
 			.setName("BL");
 		wheels.addWheel(w);
 		
 		// back right
 		w = new RayWheel(30.f, .35f, .25f)
 			.setFriction(.75f, .1f)
-			.setSuspensionLength(.33f)
+			.setSuspensionLength(.53f, .22f)
 			.setRayDir(new Vector3(-.0f, -1, 0))
 			.setRayStart(new Vector3(-.795f, .35f, -1.f))
-			.setConstant(.51f, .0514f)
+			.setConstant(0.25f , .032f)
 			.setName("BR");
 		wheels.addWheel(w);
 		
@@ -359,7 +362,7 @@ public class AppMain {
 		
 		w = new RayWheel(25.f, .3f, .15f)
 			.setFriction(.8f, .2f)
-			.setSuspensionLength(.5f)
+			.setSuspensionLength(.5f, .1f)
 			.setRayDir(new Vector3(0,-1,0))
 			.setRayStart(new Vector3(-1, .2f, 0))
 			.setConstant(.2f, .15f)
@@ -368,7 +371,7 @@ public class AppMain {
 		
 		w = new RayWheel(25.f, .3f, .15f)
 			.setFriction(.8f, .2f)
-			.setSuspensionLength(.5f)
+			.setSuspensionLength(.5f, .1f)
 			.setRayDir(new Vector3(0,-1,0))
 			.setRayStart(new Vector3(1, .2f, 0))
 			.setConstant(.2f, .15f)
@@ -573,6 +576,44 @@ public class AppMain {
 //				chassis.debugDraw(gl, dt);
 //			}
 		}
+		
+		// now we draw ui
+		Matrix4.ortho(0, screenW, 0, screenH, -1, 1, matOrtho);
+		gl.glMatrixMode(GL2.GL_PROJECTION);
+		gl.glLoadMatrixf(matOrtho.m, 0);
+		
+		gl.glMatrixMode(GL2.GL_MODELVIEW);
+		gl.glLoadIdentity();
+		
+		// draw wheel status of solver
+		
+		if (WheelSet.useLateralImpulse)
+			gl.glColor3f(1, 1, 0);
+		else
+			gl.glColor3f(.5f, .5f, .5f);
+		gl.glPushMatrix();
+		gl.glTranslated(10, 10, 0);
+		gl.glBegin(GL2.GL_LINE_LOOP);
+			gl.glVertex2i(0, 0);
+			gl.glVertex2i(20, 0);
+			gl.glVertex2i(20, 20);
+			gl.glVertex2i(0, 20);
+		gl.glEnd();
+		gl.glPopMatrix();
+		
+		if (WheelSet.useLongitudinalImpulse)
+			gl.glColor3f(1, 0, 1);
+		else
+			gl.glColor3f(.25f, .5f, .25f);
+		gl.glPushMatrix();
+		gl.glTranslated(40, 10, 0);
+		gl.glBegin(GL2.GL_LINE_LOOP);
+			gl.glVertex2i(0, 0);
+			gl.glVertex2i(20, 0);
+			gl.glVertex2i(20, 20);
+			gl.glVertex2i(0, 20);
+		gl.glEnd();
+		gl.glPopMatrix();
 	}
 	
 	public void keyDown(short keyCode) {
@@ -589,6 +630,9 @@ public class AppMain {
 			steerRight = true;
 			break;
 			
+		case KeyEvent.VK_O:
+			WheelSet.useLongitudinalImpulse = !WheelSet.useLongitudinalImpulse;
+			break;
 		case KeyEvent.VK_P:
 			WheelSet.useLateralImpulse = !WheelSet.useLateralImpulse;
 			break;
@@ -740,7 +784,7 @@ public class AppMain {
 			// apply driving force on back wheels
 			float frontBrake = 0.4f;
 			float rearBrake = 1.f - frontBrake;
-			float torquePerSec = 650.0f - (wheels.getWheel(2).wheelAngVel + wheels.getWheel(3).wheelAngVel) * .5f;
+			float torquePerSec = 65.0f - (wheels.getWheel(2).wheelAngVel + wheels.getWheel(3).wheelAngVel) * .5f;
 			torquePerSec = torquePerSec < 0 ? 0 : torquePerSec;
 			// if braking
 			if (torque < 0.0f) {
@@ -758,8 +802,8 @@ public class AppMain {
 				}
 				
 			} else {
-				wheels.getWheel(2).applyTorque(torque * torquePerSec);
-				wheels.getWheel(3).applyTorque(torque * torquePerSec);
+				wheels.getWheel(2).applyTorque(torque * torquePerSec / dt);
+				wheels.getWheel(3).applyTorque(torque * torquePerSec / dt);
 			}
 
 			world.step(dt);
@@ -913,6 +957,8 @@ public class AppMain {
 //			Matrix4.ortho(-10, 10, -10, 10, 0.1f, 100.0f, matPers);
 //			gl.glMatrixMode(GL2.GL_PROJECTION);
 //			gl.glLoadMatrixf(matPers.m, 0);
+			screenW = width;
+			screenH = height;
 			
 			System.out.println("resized: " + x + ", " + y + ", " + width + ", " + height);
 		}
