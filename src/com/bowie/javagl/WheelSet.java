@@ -239,7 +239,7 @@ public class WheelSet implements SimForce, Joint {
 						// we collapse the suspension successfully :(
 						System.out.printf("%s collapsed!! %.2f%n", w.name, rad);
 					}
-					float fHardPush = w.massN / (dt*dt) * rad * .8f;
+					float fHardPush = w.massN / (dt*dt) * rad;
 					// compute suspension forces
 					float fSuspensionMag = (w.constK * w.posError + w.constD * w.springSpd) + fHardPush;
 					fSuspensionMag = Math.max(0, fSuspensionMag);	// suspension only push, not pull
