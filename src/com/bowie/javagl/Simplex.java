@@ -228,6 +228,7 @@ public class Simplex {
 						points.remove(3);
 					}
 				}
+				// also we must recompute direction, shiet
 				return false;
 			}
 			
@@ -1014,75 +1015,6 @@ public class Simplex {
 	
 	public void removeVertex(CSOVertex v) {
 		points.remove(v);
-	}
-	
-	public void addSupportConservatively(CSOVertex v) {
-		// gotta add, while removing unnecessary vertex
-		if (points.size() >= 4) {
-//			System.out.println("Simplex.asc: removing shit simplex");
-			// gotta remove when we're full
-			CSOVertex a, b, c, d;
-			a = points.get(0);
-			b = points.get(1);
-			c = points.get(2);
-			d = points.get(3);
-			
-			// which vertex is redundant?
-			
-			// THIS WILL FAIL IF TETRAHEDRON IS DEGENERATE!!!
-			// BUT IF IT'S THE CASE, THEN REMOVING ANY POINT IS FINE!!!
-			Vector3 cp = MathHelper.naiveClosestToTetrahedron(Vector3.ZERO, a.p, b.p, c.p, d.p);
-			Quaternion bary = MathHelper.computeBarycentric(cp, a.p, b.p, c.p, d.p);
-			
-			/*float [] dots = new float[]{
-					-Vector3.dot(cp, a.p),
-					-Vector3.dot(cp, b.p),
-					-Vector3.dot(cp, c.p),
-					-Vector3.dot(cp, d.p)
-			};*/
-			
-//			System.out.printf("Simplex.asc: bary: %.6f, %.6f, %.6f, %.6f%n", bary.x, bary.y, bary.z, bary.w);
-
-			
-			// remove the minima
-			float maxD = Float.MAX_VALUE;
-			CSOVertex r = null;
-			
-			if (bary.x < maxD) {
-				maxD = bary.x;
-				r = a;
-			}
-			
-			if (bary.y < maxD) {
-				maxD = bary.y;
-				r = b;
-			}
-			
-			if (bary.z < maxD) {
-				maxD = bary.z;
-				r = c;
-			}
-			
-			if (bary.w < maxD) {
-				maxD = bary.w;
-				r = d;
-			}
-			
-			if (r != null) {
-				// gotta remove
-//				System.out.printf("SIMPLEX.ASC: gotta remove %d -> %f%n", points.indexOf(r), maxD);
-				points.remove(r);
-			} else {
-//				System.out.println("SIMPLEX.ASC: well, just remove first point");
-				points.remove(0);
-			}
-			// otherwise, it might be inside, which makes the caller a stupid person
-		} else {
-//			System.out.println("Simplex.asc: normal add");
-		}
-		
-		// safe to add
-		points.add(v);
 	}
 	
 	public Vector3 closestToOrigin() {

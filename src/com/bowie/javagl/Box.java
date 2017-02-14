@@ -322,4 +322,138 @@ public class Box extends Shape {
 	public int getShapeID() {
 		return Shape.SHAPE_BOX;
 	}
+
+	@Override
+	public boolean raycast(Vector3 sPos, Quaternion sRot, RaycastInfo r) {
+		// transform into local frame
+		Vector3 rS_loc = new Vector3(r.rayStart, sPos);
+		Vector3 rE_loc = new Vector3(r.rayEnd, sPos);
+		
+		
+		// transform
+		Quaternion invRot = sRot.conjugated();
+		invRot.transformVector(rS_loc, rS_loc);
+		invRot.transformVector(rE_loc, rE_loc);
+		
+		Vector3 rayDir = new Vector3(rE_loc, rS_loc);
+		
+		// now we calculate for all axis
+		float t0, t1;
+		int nIdx = 0;	// x axis
+		float tmin = -9999.f, tmax = 9999.f;
+		
+		if (rayDir.x != 0) {
+			float d = width * .5f;
+			
+			t0 = (rS_loc.x - d) / -rayDir.x;
+			t1 = (rS_loc.x + d) / -rayDir.x;
+			
+			if (t0 > t1) {
+				// swap
+				float tmp = t0;
+				t0 = t1;
+				t1 = tmp;
+			}
+			// update axis
+			if (t0 > tmin) {
+				tmin = t0;
+				nIdx = 0;
+			}
+			if (t1 < tmax) {
+				tmax = t1;
+			}
+		}
+		
+		// y axis
+		if (rayDir.y != 0) {
+			float d = height * .5f;
+			
+			t0 = (rS_loc.y - d) / -rayDir.y;
+			t1 = (rS_loc.y + d) / -rayDir.y;
+			
+			if (t0 > t1) {
+				// swap
+				float tmp = t0;
+				t0 = t1;
+				t1 = tmp;
+			}
+			// update axis
+			if (t0 > tmin) {
+				tmin = t0;
+				nIdx = 1;
+			}
+			if (t1 < tmax) {
+				tmax = t1;
+			}
+		}
+		
+		// z axis
+		if (rayDir.z != 0) {
+			float d = depth * .5f;
+			
+			t0 = (rS_loc.z - d) / -rayDir.z;
+			t1 = (rS_loc.z + d) / -rayDir.z;
+			
+			if (t0 > t1) {
+				// swap
+				float tmp = t0;
+				t0 = t1;
+				t1 = tmp;
+			}
+			// update axis
+			if (t0 > tmin) {
+				tmin = t0;
+				nIdx = 2;
+			}
+			if (t1 < tmax) {
+				tmax = t1;
+			}
+		}
+		
+		// fill shit
+		boolean rayHit = tmin < tmax && tmin >= 0 && tmin <= 1;
+		
+		if (rayHit) {
+			System.out.printf("rayhit %d %.4f%n", nIdx, tmin);
+			// compute normal
+			if (nIdx == 0) {
+				// x axis
+				// if ray is negative, return up
+				if (rayDir.x > 0) {
+					r.rayhitN.setTo(-1, 0, 0);
+				} else {
+					r.rayhitN.setTo(1, 0, 0);
+				}
+			} else if (nIdx == 1) {
+				// y axis
+				if (rayDir.y > 0) {
+					r.rayhitN.setTo(0, -1, 0);
+				} else {
+					r.rayhitN.setTo(0, 1, 0);
+				}
+			} else {
+				// z axis
+				if (rayDir.z > 0) {
+					r.rayhitN.setTo(0, 0, -1);
+				} else {
+					r.rayhitN.setTo(0, 0, 1);
+				}
+			}
+			
+			// segment hit
+			r.rayT = tmin;
+			
+			// ray hit position
+			r.rayhitP.setTo(
+					r.rayStart.x * (1.f-r.rayT) + r.rayEnd.x * r.rayT,
+					r.rayStart.y * (1.f-r.rayT) + r.rayEnd.y * r.rayT,
+					r.rayStart.z * (1.f-r.rayT) + r.rayEnd.z * r.rayT
+					);
+			
+			// transform shit (normal only)
+			sRot.transformVector(r.rayhitN, r.rayhitN);
+		}
+		
+		return rayHit;
+	}
 }

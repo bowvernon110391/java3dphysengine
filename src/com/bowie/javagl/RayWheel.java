@@ -201,8 +201,8 @@ public class RayWheel {
 		// 2. ray direction in absolute frame
 //		chassisRot.transformVector(localRayDir, absRayEnd);
 //		absRayEnd.scale(suspensionLength+wheelRadius);
-		// then offset it by absRayStart
-		Vector3.add(absRayStart, absRayEnd, absRayEnd);
+//		// then offset it by absRayStart
+//		Vector3.add(absRayStart, absRayEnd, absRayEnd);
 		
 		// 3. right vector in absolute frame
 		// first, we rotate along the suspension travel in local frame
@@ -338,6 +338,15 @@ public class RayWheel {
 			gl.glVertex3f(tmp.x + rayHitSide.x, 
 					tmp.y + rayHitSide.y, 
 					tmp.z + rayHitSide.z);
+			
+			// normal vector
+			gl.glColor3f(1, 1, 1);
+			gl.glVertex3f(rayHitPos.x, rayHitPos.y, rayHitPos.z);
+			gl.glVertex3f(
+					rayHitPos.x + rayHitNormal.x,
+					rayHitPos.y + rayHitNormal.y,
+					rayHitPos.z + rayHitNormal.z
+					);
 		}
 		
 		gl.glEnd();

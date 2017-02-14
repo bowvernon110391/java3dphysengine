@@ -62,4 +62,9 @@ public class CoreShape extends Shape {
 		return outerShape.getFeature(dir);
 	}
 
+	@Override
+	public boolean raycast(Vector3 sPos, Quaternion sRot, RaycastInfo r) {
+		return outerShape.raycast(sPos, sRot, r);
+	}
+
 }

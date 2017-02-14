@@ -2,6 +2,7 @@ package com.bowie.javagl;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import com.jogamp.opengl.GL2;
 
 public class Convex extends Shape {
@@ -77,7 +78,7 @@ public class Convex extends Shape {
 		}
 		gl.glEnd();*/
 		for (Polygon p : faces) {
-			p.debugDraw(gl);
+			p.debugDraw(gl, true);
 		}
 	}
 
@@ -277,5 +278,10 @@ public class Convex extends Shape {
 	@Override
 	public int getShapeID() {
 		return Shape.SHAPE_CONVEX;
+	}
+
+	@Override
+	public boolean raycast(Vector3 sPos, Quaternion sRot, RaycastInfo r) {
+		return false;
 	}
 }

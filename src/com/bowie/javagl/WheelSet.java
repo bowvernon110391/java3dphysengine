@@ -15,6 +15,8 @@ public class WheelSet implements SimForce, Joint {
 	public static boolean useLateralImpulse = false;
 	public static boolean useLongitudinalImpulse = false;
 	
+	public static RaycastInfo rayInfo = new RaycastInfo();
+	
 	public class RayHitData {
 		public RayHitData(Vector3 hitPos, Vector3 hitNormal, float t) {
 			hitP = new Vector3(hitPos);
@@ -105,6 +107,12 @@ public class WheelSet implements SimForce, Joint {
 				w.groundObj = null;
 				float t = -1.f;
 				
+				// this is reset
+				rayInfo.rayStart.setTo(w.absRayStart);
+				rayInfo.rayEnd.setTo(w.absRayEnd);
+				rayInfo.rayRadius = 0;
+				
+				
 				// do collision detection (raycast) against potential colliders
 				for (RigidBody b : bodies) {
 					// skip chassis
@@ -115,9 +123,23 @@ public class WheelSet implements SimForce, Joint {
 						s.posA = b.getPos();
 						s.rotA = b.getRot();
 						
-						int rayTest = s.doRayCast(w.absRayStart, w.absRayEnd, 0.f);
+						int rayTest = 0;//s.doRayCast(w.absRayStart, w.absRayEnd, 0.001f);
+						// fill raycast information?
+						
+						rayInfo.rayT = -1.f;
+						boolean rayHit = b.getShape().raycast(b.getPos(), b.getRot(), rayInfo);
+						
+						if (rayHit) {
+							if (rayInfo.rayT < t || t < 0.f) {
+								t = rayInfo.rayT;
+								w.rayHitNormal.setTo(rayInfo.rayhitN);
+								w.rayHitPos.setTo(rayInfo.rayhitP);
+								w.rayT = t;
+								w.groundObj = b;
+							}
+						}
 						// only account valid hit (must handle RAY_INSIDE) in separate stuffs
-						if (rayTest == Simplex.RAY_HIT) {
+						/*if (rayTest == Simplex.RAY_HIT) {
 							// well, the ray hit, record closest shit
 							if (s.rayT < t || t < 0.f) {
 								t = s.rayT;
@@ -126,7 +148,7 @@ public class WheelSet implements SimForce, Joint {
 								w.rayT = t;
 								w.groundObj = b;	// mark as ground object to affect
 							}
-						}
+						}*/
 					}
 				}
 				
@@ -239,7 +261,7 @@ public class WheelSet implements SimForce, Joint {
 						// we collapse the suspension successfully :(
 						System.out.printf("%s collapsed!! %.2f%n", w.name, rad);
 					}
-					float fHardPush = w.massN / (dt*dt) * rad;
+					float fHardPush = 0;//w.massN / (dt*dt) * rad;
 					// compute suspension forces
 					float fSuspensionMag = (w.constK * w.posError + w.constD * w.springSpd) + fHardPush;
 					fSuspensionMag = Math.max(0, fSuspensionMag);	// suspension only push, not pull
@@ -414,7 +436,8 @@ public class WheelSet implements SimForce, Joint {
 		}
 		
 		// draw bounding box
-//		bbox.debugDraw(gl); 
+		
+		bbox.debugDraw(gl); 
 	}
 
 	@Override

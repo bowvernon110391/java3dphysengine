@@ -29,6 +29,8 @@ public abstract class Shape {
 	
 	abstract public Shape getDeflated(float margin);
 	
+	abstract public boolean raycast(Vector3 sPos, Quaternion sRot, RaycastInfo r);
+	
 	/**
 	 * getInvInertiaTensor - calculate the inverse inertia
 	 * @param invMass	- the inverse mass for multiplier

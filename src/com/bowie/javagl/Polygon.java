@@ -50,12 +50,67 @@ public class Polygon {
 		p.add(new Vector3(pt));
 	}
 	
+	public float raycast(Vector3 rS, Vector3 rE) {
+		// do a raycast, return segment length
+		Vector3 segment = Vector3.tmp0;
+		Vector3.sub(rE, rS, segment);
+		
+		float vv = Vector3.dot(segment, n);
+		
+		if (Math.abs(vv) < Vector3.EPSILON)
+			return -1.f;	// no hit
+		
+		Vector3.sub(p.get(0), rS, segment);
+		float uv = Vector3.dot(segment, n);
+		
+		float t = uv / vv;
+		
+		// gotta check if it's inside perimeter
+		if (t > 0 && t < 1) {
+			// check if inside perimeter
+			segment.setTo(
+					rS.x * (1.f-t) + rE.x * t,
+					rS.y * (1.f-t) + rE.y * t,
+					rS.z * (1.f-t) + rE.z * t
+					);
+			if (!pointInsidePerimeter(segment))
+				return -1.f;	// invalid hit
+		}
+		
+		return t;
+	}
+	
 	public void pushInward(float m) {
 		for (Vector3 v : p) {
 			v.x -= n.x * m;
 			v.y -= n.y * m;
 			v.z -= n.z * m;
 		}
+	}
+	
+	public boolean pointInsidePerimeter(Vector3 pt) {
+		// test if point is inside perimeter
+		Vector3 edge = new Vector3();	// edge vector
+		Vector3 ptE = new Vector3();	// point to edge vector
+		Vector3 tN = new Vector3();		// teh calculated normal vector
+		for (int i=0; i<p.size()-1; i++) {
+			Vector3 e0 = p.get(i);
+			Vector3 e1 = p.get(i+1);
+			
+			// generate edge vector
+			Vector3.sub(e1, e0, edge);
+			
+			// pt to edge
+			Vector3.sub(pt, e0, ptE);
+			
+			// generate normal
+			Vector3.cross(edge, ptE, tN);
+			
+			// if even one of them is < 0, it's false
+			if (Vector3.dot(tN, n) < 0.f) 
+				return false;
+		}
+		return true;
 	}
 	
 	public void setNormal(Vector3 normal) {
@@ -209,6 +264,7 @@ public class Polygon {
 	 * calcNormal - calculates the polygon normal
 	 */
 	public void calcNormal() {
+		// front face is CCW
 		// provide a way to calculate normal
 		// we must calculate normal using all points
 		// storing longest normal along the way

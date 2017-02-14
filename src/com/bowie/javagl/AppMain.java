@@ -47,6 +47,14 @@ public class AppMain {
 	private RigidBody chassis;
 	private WheelSet wheels;
 	
+	private Shape box = new Box(2, 3, 5);
+	private Vector3 sPos = new Vector3();
+	private Quaternion sRot = Quaternion.makeAxisRot(new Vector3(
+			MathHelper.randomRanged(-1, 1),
+			MathHelper.randomRanged(-1, 1),
+			MathHelper.randomRanged(-1, 1)), MathHelper.randomRanged((float)-Math.PI, (float)Math.PI));
+	
+	private RaycastInfo rayInfo = new RaycastInfo();
 //	private AppRes res = new AppRes();
 	
 	private boolean drawContacts = true;
@@ -67,6 +75,7 @@ public class AppMain {
 	private boolean steerLeft= false;
 	private boolean forward = false;
 	private boolean reverse = false;
+	private boolean handbrake = false;
 	
 	// this is our lock
 //	final private ReentrantLock resLock = new ReentrantLock();
@@ -97,397 +106,10 @@ public class AppMain {
 	}
 	
 	public void init() {
-		// simplex visualization
-//		synchronized (res) {
-//			boolean success = MathHelper.gjkClosestPoint(res.sA, res.posA, res.rotA, res.sB, res.posB, res.rotB,
-//					new Vector3(1,0,0), res.simp);
-//		}
-		float worldSize = 250.0f;
+		rayInfo.rayStart.setTo(5, 1, 1);
+		rayInfo.rayEnd.setTo(-8, -2, 0);
 		
-		world.reset();
-		
-		Vector3 [] cylinder_vertex = new Vector3[] {
-				new Vector3(-.5f,  .7f, -.5f),
-				new Vector3(-.5f, -.7f, -.5f),
-				
-				new Vector3(-.7f,  .7f, -.0f),
-				new Vector3(-.7f, -.7f, -.0f),
-				
-				new Vector3(-.5f,  .7f,  .5f),
-				new Vector3(-.5f, -.7f,  .5f),
-				
-				new Vector3(-.0f,  .7f,  .7f),
-				new Vector3(-.0f, -.7f,  .7f),
-				
-				new Vector3( .5f,  .7f,  .5f),
-				new Vector3( .5f, -.7f,  .5f),
-				
-				new Vector3( .7f,  .7f, -.0f),
-				new Vector3( .7f, -.7f, -.0f),
-				
-				new Vector3( .5f,  .7f, -.5f),
-				new Vector3( .5f, -.7f, -.5f),
-				
-				new Vector3(-.0f,  .7f, -.7f),
-				new Vector3(-.0f, -.7f, -.7f),
-		};
-		
-		int [][] cylinder_faces = new int[][] {
-				{0, 1, 3, 2},
-				{2, 3, 5, 4},
-				{4, 5, 7, 6},
-				{6, 7, 9, 8},
-				{8, 9, 11, 10},
-				{10, 11, 13, 12},
-				{12, 13, 15, 14},
-				{14, 15, 1, 0},
-				
-				{0, 2, 4, 6, 8, 10, 12, 14},
-				{15, 13, 11, 9, 7, 5, 3, 1}
-		};
-		
-		Vector3 [] cone_vertex = new Vector3[] {
-				new Vector3(0, 0.65f, 0),
-				new Vector3(-.5f, -.5f, -.5f),
-					new Vector3(-.7f, -.5f, 0),
-				new Vector3(-.5f, -.5f,  .5f),
-					new Vector3(0, -.5f, .7f),
-				new Vector3( .5f, -.5f,  .5f),
-					new Vector3(.7f, -.5f, 0),
-				new Vector3( .5f, -.5f, -.5f),
-					new Vector3(0, -.5f, -.7f)
-		};
-		
-		int [][] cone_faces = new int[][] {
-				{0, 1, 2},
-				{0, 2, 3},
-				{0, 3, 4},
-				{0, 4, 5},
-				{0, 5, 6},
-				{0, 6, 7},
-				{0, 7, 8},
-				{0, 8, 1},
-				{8,7,6,5,4,3,2,1}
-		};
-		
-		// 1.5f, .5f, 2.75f
-		Vector3 [] chassis_vertex = new Vector3[]{
-				new Vector3(-.85f, -.01f,-1.55f),	// 
-				new Vector3( .85f, -.01f,-1.55f),
-				new Vector3( .85f, -.01f, 1.9f),
-				new Vector3(-.85f, -.01f, 1.9f),
-				
-				new Vector3(-.875f,  .9f,-1.7f),	// 
-				new Vector3( .875f,  .9f,-1.7f),
-				new Vector3( .875f,  .5f, 1.15f),
-				new Vector3(-.875f,  .5f, 1.15f),
-		};
-		
-		int [][] chassis_faces = new int[][]{
-				{0, 1, 2, 3},	// bottom
-				{7, 6, 5, 4},	// top
-				{3, 2, 6, 7},	// front
-				{1, 0, 4, 5},	// back
-				{2, 1, 5, 6},	// right
-				{0, 3, 7, 4}	// left
-		};
-		
-		float halfRampW = 4;
-		float rampH = 1.5f;
-		float halfRampD = 4;
-		
-		Vector3 [] ramp_vertex = new Vector3[]{
-				new Vector3(-halfRampW, 0, halfRampD),
-				new Vector3( halfRampW, 0, halfRampD),
-				new Vector3( halfRampW, 0,-halfRampD),
-				new Vector3(-halfRampW, 0,-halfRampD),
-				
-				new Vector3(-halfRampW, rampH, -halfRampD),
-				new Vector3( halfRampW, rampH, -halfRampD)
-				
-		};
-		
-		int [][] ramp_faces = new int[][]{
-				{0, 3, 2, 1},
-				{1, 2, 5},
-				{3, 0, 4},
-				{0, 1, 5, 4},
-				{2, 3, 4, 5}
-		};
-		
-		float topPadHalfW = 2.f;
-		float btmPadHalfW = 5.f;
-		float topPadHalfH = 4.f;
-		float btmPadHalfH = 8.f;
-		float padHeight = 1.5f;
-		
-		Vector3 [] jumppad_vertex = new Vector3[]{
-				new Vector3(-btmPadHalfW, 0, -btmPadHalfH),
-				new Vector3(-btmPadHalfW, 0,  btmPadHalfH),
-				new Vector3( btmPadHalfW, 0,  btmPadHalfH),
-				new Vector3( btmPadHalfW, 0, -btmPadHalfH),
-				
-				new Vector3( -topPadHalfW, padHeight, 0),
-				new Vector3( topPadHalfW, padHeight, 0)
-		};
-		
-		int [][] jumppad_indices = new int[][]{
-				{0, 3, 2, 1},
-				{0, 1, 4},
-				{2, 3, 5},
-				{1, 2, 5, 4},
-				{0, 4, 5, 3}
-		};
-		
-		world.setAngularDamping(.085f);
-		world.setLinearDamping(.075f);
-		
-		// add contact generator
-		ContactGenerator cg = new ConvexShapeContactGenerator();
-		
-		world.registerContactGenerator(Shape.SHAPE_BOX, Shape.SHAPE_BOX, cg);
-		world.registerContactGenerator(Shape.SHAPE_BOX, Shape.SHAPE_CONVEX, cg);
-		world.registerContactGenerator(Shape.SHAPE_CONVEX, Shape.SHAPE_CONVEX, cg);
-		world.registerContactGenerator(Shape.SHAPE_CORE, Shape.SHAPE_CORE, new CoreShapesContactGenerator());
-		
-		// a collections of shape
-		Shape box1, cylinder,cone,box2,xbox,ybox,zbox, carChassis, ramp, jumppad;
-		// no-core version
-		if (!useCoreShape) {
-			box1 = new Box(2, .75f, 2.5f);
-			cylinder = new Convex(cylinder_vertex, cylinder_faces);
-			cone = new Convex(cone_vertex, cone_faces);
-			box2 = new Box(1.5f, 1.f, 1.75f);
-			
-			
-			ybox = new Box(worldSize, 1, worldSize);
-			xbox = new Box(1, worldSize, worldSize);
-			zbox = new Box(worldSize, worldSize, 1);
-			
-//			carChassis = new Box(1.5f, .5f, 2.75f);
-			carChassis = new Convex(chassis_vertex, chassis_faces);
-			
-			ramp = new Convex(ramp_vertex, ramp_faces);
-			jumppad = new Convex(jumppad_vertex, jumppad_indices);
-		} else {
-			// core version
-			box1 = new CoreShape(new Box(2, .75f, 2.5f), .1f);
-			cylinder = new CoreShape(new Convex(cylinder_vertex, cylinder_faces),.1f);
-			cone = new CoreShape(new Convex(cone_vertex, cone_faces), .1f);
-			box2 = new CoreShape(new Box(1.5f, 1.f, 1.75f), .1f);
-			
-			
-			ybox = new CoreShape(new Box(worldSize, 1, worldSize), .1f);
-			xbox = new CoreShape(new Box(1, worldSize, worldSize), .1f);
-			zbox = new CoreShape(new Box(worldSize, worldSize, 1), .1f);
-			
-			carChassis = new CoreShape(new Convex(chassis_vertex, chassis_faces), .1f);
-			
-			ramp = new CoreShape(new Convex(ramp_vertex, ramp_faces), .05f);
-			jumppad = new CoreShape(new Convex(jumppad_vertex, jumppad_indices), .05f);
-		}
-		
-		
-		
-		// setup chassis
-		chassis = new RigidBody(2200.f, carChassis);
-		chassis.setRestitution(0.1f);
-		chassis.setContinuous(true);
-		chassis.setCcdRadius(.01f);
-//		chassis.setClampMotion(true);
-//		chassis.setMaxAngVel(60.f);
-//		chassis.setMaxLinVel(650.f);
-		chassis.setPos(new Vector3(2, -1.f, 4));
-		chassis.setFriction(.13f);
-		chassis.setCanSleep(false);
-		
-		world.addBody(chassis);
-		
-		// setup wheels
-		wheels = new WheelSet(chassis).setWorld(world);
-		RayWheel w;
-		
-		// front left
-		w = new RayWheel(25.f, .3f, .25f)
-			.setFriction(.75f, .1f)
-			.setSuspensionLength(.33f, .12f)
-			.setRayDir(new Vector3(.0f, -1, .0f))
-			.setRayStart(new Vector3(.795f, .25f, 1.f))
-			.setConstant(0.25f , .052f)
-			.setName("FL");
-		wheels.addWheel(w);
-		
-		// front right
-		w = new RayWheel(25.f, .3f, .25f)
-			.setFriction(.75f, .1f)
-			.setSuspensionLength(.33f, .12f)
-			.setRayDir(new Vector3(-.0f, -1, .0f))
-			.setRayStart(new Vector3(-.795f, .25f, 1.f))
-			.setConstant(0.25f , .052f)
-			.setName("FR");
-		wheels.addWheel(w);
-		
-		// back left
-		w = new RayWheel(30.f, .35f, .25f)
-			.setFriction(.75f, .1f)
-			.setSuspensionLength(.53f, .22f)
-			.setRayDir(new Vector3(.0f, -1, 0))
-			.setRayStart(new Vector3(.795f, .35f, -1.f))
-			.setConstant(0.25f , .032f)
-			.setName("BL");
-		wheels.addWheel(w);
-		
-		// back right
-		w = new RayWheel(30.f, .35f, .25f)
-			.setFriction(.75f, .1f)
-			.setSuspensionLength(.53f, .22f)
-			.setRayDir(new Vector3(-.0f, -1, 0))
-			.setRayStart(new Vector3(-.795f, .35f, -1.f))
-			.setConstant(0.25f , .032f)
-			.setName("BR");
-		wheels.addWheel(w);
-		
-		// add wheelset + chassis to engine
-		world.addSimForce(wheels);
-		world.addJoint(wheels);
-		
-		// now let's add some more
-		RigidBody cart = new RigidBody(150.f, box1);
-		cart.setPos(new Vector3(2, -1, -2));
-		cart.setRestitution(0.7f);
-		cart.setFriction(.14f);
-		
-		world.addBody(cart);
-		WheelSet cartWheels = new WheelSet(cart).setWorld(world);
-		
-		w = new RayWheel(25.f, .3f, .15f)
-			.setFriction(.8f, .2f)
-			.setSuspensionLength(.5f, .1f)
-			.setRayDir(new Vector3(0,-1,0))
-			.setRayStart(new Vector3(-1, .2f, 0))
-			.setConstant(.2f, .15f)
-			.setName("BR");
-		cartWheels.addWheel(w);
-		
-		w = new RayWheel(25.f, .3f, .15f)
-			.setFriction(.8f, .2f)
-			.setSuspensionLength(.5f, .1f)
-			.setRayDir(new Vector3(0,-1,0))
-			.setRayStart(new Vector3(1, .2f, 0))
-			.setConstant(.2f, .15f)
-			.setName("BL");
-		cartWheels.addWheel(w);
-	
-		world.addSimForce(cartWheels);
-		world.addJoint(cartWheels);
-	
-		// let's add joints between car chassis and cart
-		BallJoint jBall = new BallJoint(chassis, new Vector3(0,0,-1.85f), cart, new Vector3(0,-.375f,1.85f));
-//		world.addJoint(jBall);
-		
-		// build world boundaries		
-		
-		// bottom box
-		RigidBody bA = new RigidBody(-1.0f, ybox);
-		bA.setFriction(.4f);
-		bA.setPos(new Vector3(0, -2, 0));
-		bA.setFixed(true);
-		bA.setRestitution(.5f);
-		
-		world.addBody(bA);
-		
-		// left wall
-		bA = new RigidBody(-1.0f, xbox);
-		bA.setFriction(.4f);
-		bA.setPos(new Vector3(-worldSize * .5f, worldSize * .5f - 2.5f, 0));
-		bA.setFixed(true);
-		bA.setRestitution(.5f);
-		
-		world.addBody(bA);
-		
-		// right wall
-		bA = new RigidBody(-1.0f, xbox);
-		bA.setFriction(.4f);
-		bA.setPos(new Vector3( worldSize * .5f, worldSize * .5f - 2.5f, 0));
-		bA.setFixed(true);
-		bA.setRestitution(.5f);
-		
-		world.addBody(bA);
-		
-		// front wall
-		bA = new RigidBody(-1.0f, zbox);
-		bA.setFriction(.4f);
-		bA.setPos(new Vector3(0, worldSize * .5f - 2.5f, worldSize * .5f));
-		bA.setFixed(true);
-		bA.setRestitution(.5f);
-		
-		world.addBody(bA);
-		
-		// back wall
-		bA = new RigidBody(-1.0f, zbox);
-		bA.setFriction(.4f);
-		bA.setPos(new Vector3(0, worldSize * .5f - 2.5f, -worldSize * .5f));
-		bA.setFixed(true);
-		bA.setRestitution(.5f);
-		
-		world.addBody(bA);
-		
-		float halfWS = worldSize * .5f;
-		float margin = 2;
-		float safeWS = halfWS - margin;
-		// add random bodies
-		int nBodies = (int)MathHelper.randomRanged(10, worldSize);
-		for (int i=0; i<nBodies; i++) {
-			float val = MathHelper.randomRanged(0, 40);
-			
-			Shape s;
-			if (val < 10) {
-				s = box1;
-			} else if (val < 20) {
-				s = box2;
-			} else if (val < 30) {
-				s = cylinder;
-			} else if (val < 39) {
-				s = cone;
-			} else {
-				s = carChassis;
-			}
-
-			RigidBody b = new RigidBody(MathHelper.randomRanged(10, 1000), s);
-			b.setRestitution(MathHelper.randomRanged(0, .5f));
-			b.setFriction(MathHelper.randomRanged(.1f, .5f));
-			b.setPos(new Vector3(MathHelper.randomRanged(-safeWS, safeWS), MathHelper.randomRanged(2, 8), MathHelper.randomRanged(-safeWS, safeWS)));
-			world.addBody(b);
-		}
-		
-		// stack of boxes?
-		int nBoxes = 7;
-		for (int i=0; i<nBoxes; i++) {
-			RigidBody b = new RigidBody(10, box1);
-			b.setRestitution(0);
-			b.setFriction(0.4f);
-			b.setPos(new Vector3(MathHelper.randomRanged(-.1f, .1f), -1.f + i * 0.7f, MathHelper.randomRanged(-.1f, .1f)));
-			world.addBody(b);
-		}
-		
-		// random ramps?
-		int nRamp = (int) MathHelper.randomRanged(2, 20);
-		float rampY = -1.6f;	// should be 1.5f but allow small sink
-		for (int i=0; i<nRamp; i++) {
-			Shape s = ramp;
-			
-			if (MathHelper.randomRanged(0, 10) > 8)
-				s = jumppad;
-			
-			RigidBody b = new RigidBody(-1.f, s);
-			b.setFixed(true);
-			b.setRestitution(0.2f);
-			b.setFriction(.2f);
-			b.setPos(new Vector3(MathHelper.randomRanged(-safeWS, safeWS), rampY, MathHelper.randomRanged(-safeWS, safeWS)));
-			b.setRot(Quaternion.makeAxisRot(new Vector3(0,1,0),(float) MathHelper.randomRanged((float)-Math.PI, (float)Math.PI)));
-			
-			world.addBody(b);
-		}
+		rayInfo.rayT = -1.f;
 	}
 	
 	public void run() {
@@ -546,12 +168,7 @@ public class AppMain {
 		phys.start();
 	}
 	
-	public void render(GL2 gl, float dt) {
-		// interpolate camera
-//		camX += camVX * dt;
-//		camY += camVY * dt;
-//		camZ += camVZ * dt;
-		
+	public void render(GL2 gl, float dt) {		
 		// start rendering
 		gl.glClear(GL2.GL_COLOR_BUFFER_BIT|GL2.GL_DEPTH_BUFFER_BIT);
 		
@@ -563,19 +180,16 @@ public class AppMain {
 		gl.glMatrixMode(GL2.GL_MODELVIEW);
 		gl.glLoadIdentity();
 		
-		GLU glu = GLUgl2.createGLU(gl);
+		GLU glu = GLU.createGLU(gl.getGL());
+		glu.gluLookAt(camX, camY, camZ, camTX, camTY, camTZ, 0, 1, 0);
 		
-		synchronized (world) {
-			Vector3 base = chassis.getPos();
-			glu.gluLookAt(camX, camY, camZ, camTX, camTY, camTZ, 0, 1, 0);
-			
-			world.debugDraw(gl, drawContacts, drawContactN, drawContactT, drawBBox, 0);
-//			wheels.debugDraw(gl, 0);
-			
-//			if (WheelSet.useLateralImpulse) {
-//				chassis.debugDraw(gl, dt);
-//			}
-		}
+		gl.glPushMatrix();
+		
+		box.render(gl, sPos, sRot);
+		
+		gl.glPopMatrix();
+		
+		rayInfo.debugDraw(gl);
 		
 		// now we draw ui
 		Matrix4.ortho(0, screenW, 0, screenH, -1, 1, matOrtho);
@@ -586,6 +200,7 @@ public class AppMain {
 		gl.glLoadIdentity();
 		
 		// draw wheel status of solver
+		gl.glColor3f(1, 0, 0);
 		
 		if (WheelSet.useLateralImpulse)
 			gl.glColor3f(1, 1, 0);
@@ -635,6 +250,10 @@ public class AppMain {
 			break;
 		case KeyEvent.VK_P:
 			WheelSet.useLateralImpulse = !WheelSet.useLateralImpulse;
+			break;
+			
+		case KeyEvent.VK_Q:
+			handbrake = true;
 			break;
 			
 		case KeyEvent.VK_1:
@@ -715,6 +334,10 @@ public class AppMain {
 		case KeyEvent.VK_DOWN:
 			reverse = false;
 			break;
+			
+		case KeyEvent.VK_Q:
+			handbrake = false;
+			break;
 		}
 	}
 	
@@ -730,170 +353,39 @@ public class AppMain {
 		yRot = MathHelper.clamp(yRot, -maxYRot, maxYRot);
 	}
 	
-	public void update(float dt) {
+	public void update(float dt) {			
+		// now calculate camera
+		Vector3 tPos = new Vector3();
 		
-		long timeStep = System.nanoTime();
+		// camera target
+		camTX = tPos.x;
+		camTY = tPos.y;
+		camTZ = tPos.z;
 		
-		float steerTarget = .0f;
-		float steerDir = .0f;
-		float steerVel = .0f;
+		// the camera position			
+		float cosYRot = (float) Math.cos(Math.toRadians(yRot));
 		
-		// revert to zero by default
-		float deadCenter = 0.001f;
-		steerVel = -currSteer * .2f;
+		float camXc = (float) (Math.sin(Math.toRadians(xzRot)) * cosYRot * dist);
+		float camZc = (float) (Math.cos(Math.toRadians(xzRot)) * cosYRot * dist);
+		float camYc = (float) (Math.sin(Math.toRadians(yRot)) * dist);
 		
+		// what should it be?
+		float cX = camTX + camXc;
+		float cY = camTY + camYc;
+		float cZ = camTZ + camZc;
 		
-		if (steerLeft) {
-			steerVel += maxSteer * steerStrength;
-		}
-		if (steerRight) {
-			steerVel += -maxSteer * steerStrength;
-		}
+		// calculate camera velocity
+		camVX = (cX - camX) * camStrength / dt;
+		camVY = (cY - camY) * camStrength / dt;
+		camVZ = (cZ - camZ) * camStrength / dt;
 		
-		currSteer += steerVel;
-		// clamp it
-		currSteer = MathHelper.clamp(currSteer, -maxSteer, maxSteer);
+		camX = camX + camVX * dt;
+		camY = camY + camVY * dt;
+		camZ = camZ + camVZ * dt;
 		
-		// if it's too small, just zero it out
-		if (Math.abs(currSteer) < Vector3.EPSILON)
-			currSteer = 0;
-		
-//		System.out.printf("steer: %.4f%n", currSteer);
-		float torque = .0f;
-		
-		Vector3 fwd = new Vector3(); 
-		Vector3 low = new Vector3(0, -.0f, 0);
-		
-		if (forward) {
-			torque += 1.f;
-		}
-		
-		if (reverse) {
-			torque -= 1.1f;
-		}
-		
-		chassis.getRot().transformVector(new Vector3(0,0,torque*10000), fwd);
-		chassis.getRot().transformVector(low, low);
-		
-		synchronized (world) {
-//			chassis.applyForce(fwd);
-			// update the wheel
-			wheels.getWheel(0).setSteerAngle(currSteer);
-			wheels.getWheel(1).setSteerAngle(currSteer);
-			
-			// apply driving force on back wheels
-			float frontBrake = 0.4f;
-			float rearBrake = 1.f - frontBrake;
-			float torquePerSec = 65.0f - (wheels.getWheel(2).wheelAngVel + wheels.getWheel(3).wheelAngVel) * .5f;
-			torquePerSec = torquePerSec < 0 ? 0 : torquePerSec;
-			// if braking
-			if (torque < 0.0f) {
-				float axleVel = wheels.getWheel(2).wheelAngVel + wheels.getWheel(3).wheelAngVel;
-				
-				if (axleVel < 0.001f) {
-					wheels.getWheel(2).applyTorque(torque * torquePerSec);
-					wheels.getWheel(3).applyTorque(torque * torquePerSec);
-				} else {
-					// apply front brake too
-					wheels.getWheel(0).applyBrake(frontBrake / dt);
-					wheels.getWheel(1).applyBrake(frontBrake / dt);
-					wheels.getWheel(2).applyBrake(rearBrake / dt);
-					wheels.getWheel(3).applyBrake(rearBrake / dt);
-				}
-				
-			} else {
-				wheels.getWheel(2).applyTorque(torque * torquePerSec / dt);
-				wheels.getWheel(3).applyTorque(torque * torquePerSec / dt);
-			}
-
-			world.step(dt);
-			
-			// check our speed
-//			float carSpd = chassis.getVel().length() * 3.6f;
-//			System.out.printf("car speed: %.4f km/h%n", carSpd);
-			
-			// now calculate camera
-			Vector3 tPos = chassis.getPos();
-			
-			// camera target
-			camTX = tPos.x;
-			camTY = tPos.y;
-			camTZ = tPos.z;
-			
-			// if camera mode is 1 (align), then we need to align rotation
-			Vector3 backVec = new Vector3(); 
-			chassis.getRot().transformVector(new Vector3(0, 0, -1), backVec);
-			
-			// check it
-			
-			// the camera position			
-			float cosYRot = (float) Math.cos(Math.toRadians(yRot));
-			
-			float camXc = (float) (Math.sin(Math.toRadians(xzRot)) * cosYRot * dist);
-			float camZc = (float) (Math.cos(Math.toRadians(xzRot)) * cosYRot * dist);
-			float camYc = (float) (Math.sin(Math.toRadians(yRot)) * dist);
-			
-			// if cam mode is 1, camXc and camZc needs to be transformed
-			if (camMode == 1) {
-				Vector3 trans = new Vector3(camXc, 0, camZc);
-				float len = trans.length();
-				chassis.getRot().transformVector(trans, trans);
-				trans.normalize();
-				trans.scale(len);
-				
-				camXc = trans.x;
-				camZc = trans.z;
-			}
-			
-			// what should it be?
-			float cX = camTX + camXc;
-			float cY = camTY + camYc;
-			float cZ = camTZ + camZc;
-			
-			// calculate camera velocity
-			camVX = (cX - camX) * camStrength / dt;
-			camVY = (cY - camY) * camStrength / dt;
-			camVZ = (cZ - camZ) * camStrength / dt;
-			
-			camX = camX + camVX * dt;
-			camY = camY + camVY * dt;
-			camZ = camZ + camVZ * dt;
-		}			
-		
-//		System.out.printf("bomb's stat: %.4f, %.4f%n", bomb.getVel().length(), bomb.getAngVel().length());
-		
-		double ovl = (double)(System.nanoTime() - timeStep)/1000000;
-		
-		profilerTrigger += dt;
-		
-		// if one second has passed, update information
-		if (profilerTrigger >= 5.0f) {
-			profilerTrigger = 0;
-			String profTxt = "upd(%.2f)ref(%.2f)bphase(%.2f)nphase(%.2f)sort(%.2f)pre(%.2f)solver(%.2f)psolver(%.2f)intg(%.2f)|ovl(%.2f)%n";
-			
-//			System.out.printf(profTxt, world.getPerformanceTimer(Physics.TIME_UPDATE_VEL), 
-//					world.getPerformanceTimer(Physics.TIME_REFRESH_CONTACT),
-//					world.getPerformanceTimer(Physics.TIME_BROAD_PHASE),
-//					world.getPerformanceTimer(Physics.TIME_NARROW_PHASE),
-//					world.getPerformanceTimer(Physics.TIME_SORT_CONTACT),
-//					world.getPerformanceTimer(Physics.TIME_PRE_STEP),
-//					world.getPerformanceTimer(Physics.TIME_SOLVER),
-//					world.getPerformanceTimer(Physics.TIME_POSITION_SOLVER),
-//					world.getPerformanceTimer(Physics.TIME_INTEGRATE),
-//					ovl);
-			
-			String count = 	"body(" + world.getBodyCount() + ")" +
-							"joint(" + world.getJointCount() + ")" +
-							"force(" + world.getForceCount() + ")" +
-							"pair(" + world.getPairCount() +")" +
-							"manifold(" + world.getManifoldCount()+")";
-//			System.out.println(count);
-			
-			
-//			System.out.printf("GJK: %d,  EPA: %d%n", CoreShapesContactGenerator.gjkCount, CoreShapesContactGenerator.epaCount);
-		}
-		
-		
+		// let's do this
+		rayInfo.rayT = -1.f;
+		box.raycast(sPos, sRot, rayInfo);
 	}
 	
 	/**
@@ -1003,7 +495,14 @@ public class AppMain {
 			
 			tracking = true;
 			
-//			System.out.println("click: " + e.getX() + ", " + e.getY());
+			// now let's move it
+			if (e.getButton() == MouseEvent.BUTTON1) {
+				rayInfo.rayStart.setTo(camX, camY, camZ);
+			}
+			
+			if (e.getButton() == MouseEvent.BUTTON3) {
+				rayInfo.rayEnd.setTo(camX, camY, camZ);
+			}
 		}
 
 		@Override
