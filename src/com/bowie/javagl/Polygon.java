@@ -90,12 +90,16 @@ public class Polygon {
 	
 	public boolean pointInsidePerimeter(Vector3 pt) {
 		// test if point is inside perimeter
+		// it is inside if every normal generated along the edge
+		// produces consistent normal with the polygon normal
 		Vector3 edge = new Vector3();	// edge vector
 		Vector3 ptE = new Vector3();	// point to edge vector
 		Vector3 tN = new Vector3();		// teh calculated normal vector
-		for (int i=0; i<p.size()-1; i++) {
+		
+		int np = p.size();
+		for (int i=0; i<p.size(); i++) {
 			Vector3 e0 = p.get(i);
-			Vector3 e1 = p.get(i+1);
+			Vector3 e1 = p.get((i+1) % np);
 			
 			// generate edge vector
 			Vector3.sub(e1, e0, edge);
@@ -103,11 +107,11 @@ public class Polygon {
 			// pt to edge
 			Vector3.sub(pt, e0, ptE);
 			
-			// generate normal
-			Vector3.cross(edge, ptE, tN);
+			// generate perpendicular normal (extruded)
+			Vector3.cross(n, edge, tN);
 			
 			// if even one of them is < 0, it's false
-			if (Vector3.dot(tN, n) < 0.f) 
+			if (Vector3.dot(ptE, tN) <= 0.f) 
 				return false;
 		}
 		return true;
@@ -335,9 +339,13 @@ public class Polygon {
 			mode = GL2.GL_POLYGON;
 		
 		// draw main shape
+		int cIdx = 0;
 		gl.glBegin(mode);
-			for (Vector3 v : p)
+			for (Vector3 v : p) {
+				float [] color = Polytope.getColor(cIdx++);
+				gl.glColor3f(color[0], color[1], color[2]);
 				gl.glVertex3f(v.x, v.y, v.z);
+			}
 		gl.glEnd();
 		
 		// draw normal

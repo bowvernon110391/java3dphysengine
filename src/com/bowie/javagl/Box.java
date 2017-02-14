@@ -414,7 +414,7 @@ public class Box extends Shape {
 		boolean rayHit = tmin < tmax && tmin >= 0 && tmin <= 1;
 		
 		if (rayHit) {
-			System.out.printf("rayhit %d %.4f%n", nIdx, tmin);
+//			System.out.printf("rayhit %d %.4f%n", nIdx, tmin);
 			// compute normal
 			if (nIdx == 0) {
 				// x axis

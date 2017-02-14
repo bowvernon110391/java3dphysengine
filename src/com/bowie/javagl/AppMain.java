@@ -47,7 +47,7 @@ public class AppMain {
 	private RigidBody chassis;
 	private WheelSet wheels;
 	
-	private Shape box = new Box(2, 3, 5);
+	private Shape sTarget;
 	private Vector3 sPos = new Vector3();
 	private Quaternion sRot = Quaternion.makeAxisRot(new Vector3(
 			MathHelper.randomRanged(-1, 1),
@@ -55,7 +55,8 @@ public class AppMain {
 			MathHelper.randomRanged(-1, 1)), MathHelper.randomRanged((float)-Math.PI, (float)Math.PI));
 	
 	private RaycastInfo rayInfo = new RaycastInfo();
-//	private AppRes res = new AppRes();
+	
+	private boolean refreshRaycast = false;
 	
 	private boolean drawContacts = true;
 	private boolean drawContactN = false;
@@ -110,6 +111,95 @@ public class AppMain {
 		rayInfo.rayEnd.setTo(-8, -2, 0);
 		
 		rayInfo.rayT = -1.f;
+		
+		Vector3 [] cylinder_vertex = new Vector3[] {
+				new Vector3(-.5f,  .7f, -.5f),
+				new Vector3(-.5f, -.7f, -.5f),
+				
+				new Vector3(-.7f,  .7f, -.0f),
+				new Vector3(-.7f, -.7f, -.0f),
+				
+				new Vector3(-.5f,  .7f,  .5f),
+				new Vector3(-.5f, -.7f,  .5f),
+				
+				new Vector3(-.0f,  .7f,  .7f),
+				new Vector3(-.0f, -.7f,  .7f),
+				
+				new Vector3( .5f,  .7f,  .5f),
+				new Vector3( .5f, -.7f,  .5f),
+				
+				new Vector3( .7f,  .7f, -.0f),
+				new Vector3( .7f, -.7f, -.0f),
+				
+				new Vector3( .5f,  .7f, -.5f),
+				new Vector3( .5f, -.7f, -.5f),
+				
+				new Vector3(-.0f,  .7f, -.7f),
+				new Vector3(-.0f, -.7f, -.7f),
+		};
+		
+		int [][] cylinder_faces = new int[][] {
+				{0, 1, 3, 2},
+				{2, 3, 5, 4},
+				{4, 5, 7, 6},
+				{6, 7, 9, 8},
+				{8, 9, 11, 10},
+				{10, 11, 13, 12},
+				{12, 13, 15, 14},
+				{14, 15, 1, 0},
+				
+				{0, 2, 4, 6, 8, 10, 12, 14},
+				{15, 13, 11, 9, 7, 5, 3, 1}
+		};
+		
+		Vector3 [] cone_vertex = new Vector3[] {
+				new Vector3(0, 0.65f, 0),
+				new Vector3(-.5f, -.5f, -.5f),
+					new Vector3(-.7f, -.5f, 0),
+				new Vector3(-.5f, -.5f,  .5f),
+					new Vector3(0, -.5f, .7f),
+				new Vector3( .5f, -.5f,  .5f),
+					new Vector3(.7f, -.5f, 0),
+				new Vector3( .5f, -.5f, -.5f),
+					new Vector3(0, -.5f, -.7f)
+		};
+		
+		int [][] cone_faces = new int[][] {
+				{0, 1, 2},
+				{0, 2, 3},
+				{0, 3, 4},
+				{0, 4, 5},
+				{0, 5, 6},
+				{0, 6, 7},
+				{0, 7, 8},
+				{0, 8, 1},
+				{8,7,6,5,4,3,2,1}
+		};
+		
+		float halfRampW = 4;
+		float rampH = 1.5f;
+		float halfRampD = 4;
+		
+		Vector3 [] ramp_vertex = new Vector3[]{
+				new Vector3(-halfRampW, 0, halfRampD),
+				new Vector3( halfRampW, 0, halfRampD),
+				new Vector3( halfRampW, 0,-halfRampD),
+				new Vector3(-halfRampW, 0,-halfRampD),
+				
+				new Vector3(-halfRampW, rampH, -halfRampD),
+				new Vector3( halfRampW, rampH, -halfRampD)
+				
+		};
+		
+		int [][] ramp_faces = new int[][]{
+				{0, 3, 2, 1},
+				{1, 2, 5},
+				{3, 0, 4},
+				{0, 1, 5, 4},
+				{2, 3, 4, 5}
+		};
+		
+		sTarget = new Convex(ramp_vertex, ramp_faces);
 	}
 	
 	public void run() {
@@ -185,7 +275,7 @@ public class AppMain {
 		
 		gl.glPushMatrix();
 		
-		box.render(gl, sPos, sRot);
+		sTarget.render(gl, sPos, sRot);
 		
 		gl.glPopMatrix();
 		
@@ -384,8 +474,12 @@ public class AppMain {
 		camZ = camZ + camVZ * dt;
 		
 		// let's do this
-		rayInfo.rayT = -1.f;
-		box.raycast(sPos, sRot, rayInfo);
+		if (refreshRaycast) {
+			refreshRaycast = false;
+			
+			rayInfo.rayT = -1.f;
+			sTarget.raycast(sPos, sRot, rayInfo);
+		}
 	}
 	
 	/**
@@ -498,10 +592,12 @@ public class AppMain {
 			// now let's move it
 			if (e.getButton() == MouseEvent.BUTTON1) {
 				rayInfo.rayStart.setTo(camX, camY, camZ);
+				refreshRaycast = true;
 			}
 			
 			if (e.getButton() == MouseEvent.BUTTON3) {
 				rayInfo.rayEnd.setTo(camX, camY, camZ);
+				refreshRaycast = true;
 			}
 		}
 

@@ -282,6 +282,78 @@ public class Convex extends Shape {
 
 	@Override
 	public boolean raycast(Vector3 sPos, Quaternion sRot, RaycastInfo r) {
+		// transform into local frame
+		Vector3 rS_loc = new Vector3(r.rayStart, sPos);
+		Vector3 rE_loc = new Vector3(r.rayEnd, sPos);
+		
+		// transform
+		Quaternion invRot = sRot.conjugated();
+		invRot.transformVector(rS_loc, rS_loc);
+		invRot.transformVector(rE_loc, rE_loc);
+		
+		Vector3 rayDir = new Vector3(rE_loc, rS_loc);
+		
+		// loop over all polygon, do raycast against them
+		float currentT = -1.f;	// so far
+		Polygon polyHit = null;
+		for (Polygon p : faces) {
+			Vector3 AP = new Vector3(rS_loc, p.p.get(0));
+			
+			float uv = Vector3.dot(AP, p.n);
+			// ignore backfaces
+			if (uv < 0.f)
+				continue;
+			
+			// go on
+			float vv = Vector3.dot(rayDir, p.n);
+			
+			// prevent parallel
+			if (Math.abs(vv) < Vector3.EPSILON) 
+				continue;
+			
+			float t = -uv / vv;
+			// is it worth it?
+			if (t < 0 || t > 1)
+				continue;
+			
+			if (t < currentT || currentT < 0) {
+				System.out.printf("better t: %.4f -> %.4f %n", currentT, t);
+				// wait!! is it in the perimeter?
+				// generate hit point
+				Vector3 hitP = Vector3.tmp0;
+				hitP.setTo(
+						rS_loc.x * (1.f - t) + rE_loc.x * t,
+						rS_loc.y * (1.f - t) + rE_loc.y * t,
+						rS_loc.z * (1.f - t) + rE_loc.z * t
+						);
+				if (!p.pointInsidePerimeter(hitP)) {
+					System.out.println("too bad it's outside perimeter");
+					continue;
+				}
+				
+				// welp, it's good!
+				currentT = t;
+				polyHit = p;
+			}
+		}
+		
+		// ok, now we generate the real stuffs
+		if (polyHit != null && currentT >= 0 && currentT <= 1) {
+			r.hitPoly = new Polygon(polyHit);
+			r.hitPoly.transform(sPos, sRot);
+			// now calculate shit
+			r.rayT = currentT;
+			r.rayhitN.setTo(polyHit.n);
+			sRot.transformVector(r.rayhitN, r.rayhitN);
+			// compute hit position
+			r.rayhitP.setTo(
+					r.rayStart.x * (1.f-r.rayT) + r.rayEnd.x * r.rayT,
+					r.rayStart.y * (1.f-r.rayT) + r.rayEnd.y * r.rayT,
+					r.rayStart.z * (1.f-r.rayT) + r.rayEnd.z * r.rayT
+					);
+			return true;
+		}
+		
 		return false;
 	}
 }
