@@ -107,12 +107,6 @@ public class WheelSet implements SimForce, Joint {
 				w.groundObj = null;
 				float t = -1.f;
 				
-				// this is reset
-				rayInfo.rayStart.setTo(w.absRayStart);
-				rayInfo.rayEnd.setTo(w.absRayEnd);
-				rayInfo.rayRadius = 0;
-				
-				
 				// do collision detection (raycast) against potential colliders
 				for (RigidBody b : bodies) {
 					// skip chassis
@@ -123,14 +117,24 @@ public class WheelSet implements SimForce, Joint {
 						s.posA = b.getPos();
 						s.rotA = b.getRot();
 						
-						int rayTest = 0;//s.doRayCast(w.absRayStart, w.absRayEnd, 0.001f);
-						// fill raycast information?
-						
+//						int rayTest = s.doRayCast(w.absRayStart, w.absRayEnd, 0.f);
+						// setup ray
+						rayInfo.rayStart.setTo(w.absRayStart.x, w.absRayStart.y, w.absRayStart.z);
+						rayInfo.rayEnd.setTo(w.absRayEnd.x, w.absRayEnd.y, w.absRayEnd.z);
 						rayInfo.rayT = -1.f;
-						boolean rayHit = b.getShape().raycast(b.getPos(), b.getRot(), rayInfo);
 						
-						if (rayHit) {
-							if (rayInfo.rayT < t || t < 0.f) {
+						boolean rayTest = b.getShape().raycast(b.getPos(), b.getRot(), rayInfo);
+						// only account valid hit (must handle RAY_INSIDE) in separate stuffs
+						if (rayTest) {
+							// well, the ray hit, record closest shit
+							/*if (s.rayT < t || t < 0.f) {
+								t = s.rayT;
+								w.rayHitNormal.setTo(s.rayhitNormal.normalized());
+								w.rayHitPos.setTo(s.rayhitPos);
+								w.rayT = t;
+								w.groundObj = b;	// mark as ground object to affect
+							}*/
+							if (rayInfo.rayT < t || t < 0) {
 								t = rayInfo.rayT;
 								w.rayHitNormal.setTo(rayInfo.rayhitN);
 								w.rayHitPos.setTo(rayInfo.rayhitP);
@@ -138,17 +142,6 @@ public class WheelSet implements SimForce, Joint {
 								w.groundObj = b;
 							}
 						}
-						// only account valid hit (must handle RAY_INSIDE) in separate stuffs
-						/*if (rayTest == Simplex.RAY_HIT) {
-							// well, the ray hit, record closest shit
-							if (s.rayT < t || t < 0.f) {
-								t = s.rayT;
-								w.rayHitNormal.setTo(s.rayhitNormal.normalized());
-								w.rayHitPos.setTo(s.rayhitPos);
-								w.rayT = t;
-								w.groundObj = b;	// mark as ground object to affect
-							}
-						}*/
 					}
 				}
 				
@@ -261,7 +254,7 @@ public class WheelSet implements SimForce, Joint {
 						// we collapse the suspension successfully :(
 						System.out.printf("%s collapsed!! %.2f%n", w.name, rad);
 					}
-					float fHardPush = 0;//w.massN / (dt*dt) * rad;
+					float fHardPush = w.massN / (dt*dt) * rad;
 					// compute suspension forces
 					float fSuspensionMag = (w.constK * w.posError + w.constD * w.springSpd) + fHardPush;
 					fSuspensionMag = Math.max(0, fSuspensionMag);	// suspension only push, not pull
@@ -293,8 +286,8 @@ public class WheelSet implements SimForce, Joint {
 					
 					// low speed slip ratio calculation
 					// low speed defined as below 5 km/h
-					if (gndVelL < 4.2f) {
-						gndVelL = 4.2f;
+					if (gndVelL < 1.3f) {
+						gndVelL = 1.3f;
 					}
 					
 					slipRatio = wAccel / gndVelL * 100.f;
@@ -349,8 +342,8 @@ public class WheelSet implements SimForce, Joint {
 					// let's try to clamp lateral friction (so as not to change sign)
 //					float maxLateral = Math.abs(vLat * w.massSide) /dt;
 //					fLatPMF = MathHelper.clamp(fLatPMF, -maxLateral, maxLateral);
-					// only apply if speed is > 15 km/h
-					if (vLen > 4.2f) {
+					// only apply if speed is > 5 km/h
+					if (vLen > 1.3f) {
 						if (!useLateralImpulse) {
 							// not using impulse, use force instead
 							w.lowSpeedMode = false;	// disable lowSpeedMode
@@ -436,8 +429,7 @@ public class WheelSet implements SimForce, Joint {
 		}
 		
 		// draw bounding box
-		
-		bbox.debugDraw(gl); 
+//		bbox.debugDraw(gl); 
 	}
 
 	@Override

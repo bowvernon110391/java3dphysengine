@@ -317,7 +317,7 @@ public class Convex extends Shape {
 				continue;
 			
 			if (t < currentT || currentT < 0) {
-				System.out.printf("better t: %.4f -> %.4f %n", currentT, t);
+//				System.out.printf("better t: %.4f -> %.4f %n", currentT, t);
 				// wait!! is it in the perimeter?
 				// generate hit point
 				Vector3 hitP = Vector3.tmp0;
@@ -327,7 +327,7 @@ public class Convex extends Shape {
 						rS_loc.z * (1.f - t) + rE_loc.z * t
 						);
 				if (!p.pointInsidePerimeter(hitP)) {
-					System.out.println("too bad it's outside perimeter");
+//					System.out.println("too bad it's outside perimeter");
 					continue;
 				}
 				
